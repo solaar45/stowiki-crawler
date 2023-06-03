@@ -1,0 +1,11 @@
+.bgimage {
+    background-image: url('./img/st.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.ant-table-small .ant-table-cell {
+    font-size: 14px !important;
+    /* Hier die gewünschte Schriftgröße einstellen */
+}

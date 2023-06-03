@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Starship Data</title>
+  <!-- Link zu Vue.js -->
+  <script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+</head>
+<body>
+  <div id="app">
+    <button @click="fetchStarshipData">Starship Data abrufen</button>
+
+    <!-- Tabelle zur Anzeige des Ergebnisses -->
+    <table v-if="starshipData.length > 0">
+      <thead>
+        <tr>
+          <th>Ship</th>
+          <th>Label 1</th>
+          <th>Label 2</th>
+          <!-- Weitere Spalten hier hinzufügen -->
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="row in starshipData" :key="row.Ship">
+          <td>{{ row.Ship }}</td>
+          <td>{{ row['Label 1'] }}</td>
+          <td>{{ row['Label 2'] }}</td>
+          <!-- Weitere Spalten hier hinzufügen -->
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Meldung anzeigen, wenn noch keine Daten abgerufen wurden -->
+    <p v-else>Noch keine Starship-Daten abgerufen.</p>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        starshipData: []  // Array zum Speichern der abgerufenen Daten
+      },
+      methods: {
+        async fetchStarshipData() {
+          // URLs der Seiten
+          const urls = [
+            "https://sto.fandom.com/wiki/Federation_playable_starship"
+          ];
+
+          // Funktion zum Abrufen der Daten
+          const fetchData = async (url) => {
+            const response = await fetch(url);
+            const html = await response.text();
+            return new DOMParser().parseFromString(html, "text/html");
+          };
+
+          // Schleife über alle URLs
+          for (let url of urls) {
+            const soup = await fetchData(url);
+            const table = soup.querySelector("table.wikitable");
+
+            if (table) {
+              const rows = Array.from(table.querySelectorAll("tr"));
+
+              for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const secondColumn = row.querySelectorAll("td")[1];
+                const link = secondColumn.querySelector("a").getAttribute("href");
+                const completeLink = "https://sto.fandom.com" + link;
+                const soupComplete = await fetchData(completeLink);
+
+                const missionNameDiv = soupComplete.querySelector('div.missionname');
+                const labelDivs = soupComplete.querySelectorAll('div.label');
+                const entryDivs = soupComplete.querySelectorAll('div.entry');
+
+                const resultRow = {};
+
+                if (missionNameDiv) {
+                  const missionName = missionNameDiv.textContent.trim();
+                  resultRow["Ship"] = missionName;
+                }
+
+                if (labelDivs.length > 0 && entryDivs.length > 0) {
+                  const minCount = Math.min(labelDivs.length, entryDivs.length);
+
+                  for (let j = 0; j < minCount; j++) {
+                    const labelText = labelDivs[j].textContent.trim();
+                    const entryText = entryDivs[j].textContent.trim();
+                    resultRow[labelText] = entryText;
+                  }
+                }
+
+                this.starshipData.push(resultRow);
+              }
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
