@@ -30,6 +30,9 @@ else:
     storage = JSONStorage("ships.json")
     logger.info("Using JSON file storage")
 
+# Initialize scraper (shared instance for cache)
+scraper = STOWikiScraper()
+
 
 def run_async(coro):
     """Helper to run async functions in Flask routes.
@@ -58,7 +61,9 @@ def index() -> Dict[str, Any]:
     return jsonify({
         "name": "STO Wiki Crawler API",
         "version": "2.0.0",
+        "wiki_source": "stowiki.net",
         "storage": "database" if isinstance(storage, DatabaseStorage) else "json",
+        "cache_enabled": settings.enable_cache,
         "endpoints": {
             "/": "API information",
             "/health": "Health check",
@@ -68,6 +73,8 @@ def index() -> Dict[str, Any]:
             "/ships": "Get all ships (optional ?faction= filter)",
             "/ships/download": "Download all ships as JSON",
             "/ships/count": "Get total ship count",
+            "/cache/stats": "Get cache statistics",
+            "/cache/clear": "Clear all cached data",
         }
     })
 
@@ -79,7 +86,12 @@ def health() -> Dict[str, str]:
     Returns:
         JSON with health status
     """
-    return jsonify({"status": "healthy", "storage": type(storage).__name__})
+    return jsonify({
+        "status": "healthy",
+        "storage": type(storage).__name__,
+        "cache_enabled": settings.enable_cache,
+        "wiki_source": settings.base_url
+    })
 
 
 @app.route("/factions", methods=["GET"])
@@ -115,7 +127,6 @@ def scrape_all_factions() -> Response:
     try:
         logger.info("Starting full scrape of all factions")
         
-        scraper = STOWikiScraper()
         all_ships = []
         
         for faction in Faction:
@@ -186,7 +197,6 @@ def scrape_faction(faction_key: str) -> Response:
         
         logger.info(f"Starting scrape of {faction.value} ships")
         
-        scraper = STOWikiScraper()
         url = Faction.get_wiki_url(faction)
         
         # Scrape faction
@@ -303,6 +313,49 @@ def get_ship_count() -> Response:
         })
     except Exception as e:
         logger.error(f"Failed to get ship count: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/cache/stats", methods=["GET"])
+def get_cache_stats() -> Response:
+    """Get cache statistics.
+    
+    Returns:
+        JSON with cache stats
+    """
+    try:
+        stats = run_async(scraper.get_cache_stats())
+        return jsonify({
+            "success": True,
+            "cache": stats
+        })
+    except Exception as e:
+        logger.error(f"Failed to get cache stats: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/cache/clear", methods=["POST"])
+def clear_cache() -> Response:
+    """Clear all cached data.
+    
+    Returns:
+        JSON with clear result
+    """
+    try:
+        count = run_async(scraper.clear_cache())
+        return jsonify({
+            "success": True,
+            "message": f"Cleared {count} cache files",
+            "files_cleared": count
+        })
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {e}", exc_info=True)
         return jsonify({
             "success": False,
             "error": str(e)
