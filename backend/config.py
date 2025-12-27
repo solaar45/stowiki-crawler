@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     request_timeout: int = 30
     max_retries: int = 3
     
-    # Database Configuration
-    database_url: str = "sqlite:///ships.db"
+    # Storage Configuration
+    storage_type: str = "json"  # "json" or "database"
+    database_url: str = "sqlite:///ships.db"  # Can be PostgreSQL, MySQL, etc.
     
     # Logging
     log_level: str = "INFO"
