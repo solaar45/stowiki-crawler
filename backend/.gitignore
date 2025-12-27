@@ -1,27 +1,58 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# testing
-/coverage
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# production
-/build
+# Environment Variables
+.env
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Output Files
+output.json
+ergebnis.json
+*.db
+*.sqlite
+*.sqlite3
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-/archiv
-.vscode
-zumVergleich.py
+# Logs
+*.log
+logs/

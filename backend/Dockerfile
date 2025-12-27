@@ -1,14 +1,25 @@
-# Verwende ein Python-Basisimage
-FROM python:3.9
+# Multi-stage build for smaller image size
+FROM python:3.12-slim AS builder
 
-# Setze das Arbeitsverzeichnis im Container
 WORKDIR /app
 
-# Kopiere die Anwendungsdateien in das Arbeitsverzeichnis
+# Install dependencies in user space
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Final stage
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy application code
 COPY . /app
 
-# Installiere die Python-Abhängigkeiten
-RUN pip install --no-cache-dir -r requirements.txt
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
 
-# Setze den Befehl, der beim Start des Containers ausgeführt werden soll
-CMD ["python", "server.py"]
+# Use gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "api.app:app"]
