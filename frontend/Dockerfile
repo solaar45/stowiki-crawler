@@ -1,20 +1,29 @@
-# Verwende ein offizielles Node.js-Basisimage als Basis
-FROM node:14-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
-# Setze das Arbeitsverzeichnis innerhalb des Containers
 WORKDIR /app
 
-# Kopiere package.json und package-lock.json in das Arbeitsverzeichnis
+# Copy package files
 COPY package*.json ./
 
-# Installiere die Abhängigkeiten
-RUN npm install
+# Install dependencies
+RUN npm ci
 
-# Kopiere den Rest des Codes in das Arbeitsverzeichnis
+# Copy source code
 COPY . .
 
-# Baue die React-Anwendung
+# Build application
 RUN npm run build
 
-# Setze den Befehl, der beim Start des Containers ausgeführt werden soll
-CMD ["npm", "start"]
+# Production stage
+FROM nginx:alpine
+
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
