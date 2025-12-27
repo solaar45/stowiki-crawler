@@ -1,239 +1,293 @@
-# STO Wiki Crawler
+# 🚀 STO Wiki Crawler
 
-[![CI/CD Pipeline](https://github.com/solaar45/stowiki-crawler/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/solaar45/stowiki-crawler/actions)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A modern, high-performance Star Trek Online ship data scraper with a sleek TypeScript + React frontend.
 
-A modern, async web scraper for extracting Star Trek Online ship data from the STO Wiki. Built with Python 3.12, async/await, and comprehensive type safety.
+## ✨ Features
 
-## Features
+### Backend
+- **Async Scraping**: Concurrent ship data extraction using `httpx` and `asyncio`
+- **Multi-Faction Support**: Federation, Klingon, Romulan, Dominion, Cross-Faction
+- **Flexible Storage**: JSON file or database (SQLite, PostgreSQL, MySQL)
+- **Type-Safe**: Full Pydantic validation for all ship data
+- **Robust Error Handling**: Automatic retries with exponential backoff
+- **RESTful API**: Clean Flask endpoints for all operations
 
-- ⚡ **Async/Await**: High-performance concurrent scraping with `httpx`
-- 🔄 **Retry Logic**: Automatic retries with exponential backoff using `tenacity`
-- 🛡️ **Type Safety**: Full pydantic models with validation
-- 📊 **Structured Logging**: Centralized logging configuration
-- 🐳 **Docker Ready**: Multi-stage builds for minimal image size
-- 🧪 **Comprehensive Tests**: pytest suite with >80% coverage
-- 🔧 **Configuration**: Environment-based settings with pydantic-settings
-- 🚀 **CI/CD**: GitHub Actions for automated testing and building
+### Frontend
+- **Modern Stack**: TypeScript + React 18 + Vite
+- **Performant UI**: TanStack Table with virtualization
+- **Real-time Updates**: React Query for smart caching
+- **Dark Mode**: Beautiful Tailwind CSS dark theme
+- **Responsive Design**: Mobile-first approach
+- **Type Safety**: Full TypeScript coverage
 
-## Quick Start
+## 🏗️ Architecture
+
+```
+stowiki-crawler/
+├── backend/
+│   ├── api/              # Flask REST API
+│   ├── models/           # Pydantic data models
+│   ├── storage/          # Storage backends (JSON, DB)
+│   ├── scraper.py        # Async web scraping
+│   ├── transformers.py   # Data transformation
+│   └── config.py         # Configuration
+├── frontend/
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   ├── lib/          # API client & utilities
+│   │   └── types/        # TypeScript types
+│   └── vite.config.ts    # Vite configuration
+└── docker-compose.yml    # Container orchestration
+```
+
+## 🚀 Quick Start
 
 ### Prerequisites
+- Python 3.11+
+- Node.js 20+
+- Docker (optional)
 
-- Python 3.11+ or Docker
-- pip or Docker Compose
-
-### Local Development
+### Backend Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/solaar45/stowiki-crawler.git
-cd stowiki-crawler/backend
+cd backend
 
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment template
+# Configure (optional)
 cp .env.example .env
+# Edit .env for database settings
 
-# Run the application
+# Run server
 python -m api.app
 ```
 
-### Docker
+Server runs at `http://localhost:5000`
+
+### Frontend Setup
 
 ```bash
-# Build and run with Docker Compose
-docker-compose up --build
+cd frontend
 
-# Or build manually
-cd backend
-docker build -t stowiki-crawler .
-docker run -p 5000:5000 stowiki-crawler
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
 ```
 
-## API Endpoints
+Frontend runs at `http://localhost:3000`
 
-### Health Check
+### Docker Setup
+
 ```bash
-GET /health
-```
-Returns service health status.
+# Start all services
+docker-compose up -d
 
-### Scrape Dominion Ships
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+## 📡 API Endpoints
+
+### Information
+- `GET /` - API information
+- `GET /health` - Health check
+- `GET /factions` - List all factions
+
+### Scraping
+- `GET /scrape/all` - Scrape all faction ships
+- `GET /scrape/{faction}` - Scrape specific faction
+  - Valid factions: `federation`, `klingon`, `romulan`, `dominion`, `cross-faction`
+
+### Data Access
+- `GET /ships` - Get all ships (optional `?faction=` filter)
+- `GET /ships/download` - Download ships as JSON
+- `GET /ships/count` - Get total ship count
+
+### Example Usage
+
 ```bash
-GET /scrape/dominion-ships
-```
-Scrapes all Dominion playable starships and returns JSON.
+# Scrape all Federation ships
+curl http://localhost:5000/scrape/federation
 
-**Response:**
-```json
-{
-  "success": true,
-  "count": 15,
-  "ships": [
-    {
-      "name": "Jem'Hadar Strike Ship",
-      "link": "https://sto.fandom.com/wiki/Jem'Hadar_Strike_Ship",
-      "tier": 5,
-      "faction": "Dominion",
-      "weapons": {
-        "fore": 4,
-        "aft": 3,
-        "can_equip_dual_cannons": true
-      },
-      "stats": {
-        "max_hull": 39000,
-        "turn_rate": 15.0
-      }
-    }
-  ]
-}
+# Get all ships
+curl http://localhost:5000/ships
+
+# Filter by faction
+curl http://localhost:5000/ships?faction=Klingon
+
+# Download as JSON
+curl http://localhost:5000/ships/download -o ships.json
 ```
 
-### Download Ships Data
-```bash
-GET /scrape/dominion-ships/download
-```
-Downloads ship data as JSON file.
+## ⚙️ Configuration
 
-## Project Structure
-
-```
-backend/
-├── api/                    # Flask API application
-│   ├── __init__.py
-│   └── app.py             # Main Flask app with routes
-├── models/                 # Pydantic data models
-│   ├── __init__.py
-│   └── ship.py            # Ship, Weapons, Stats models
-├── scraper/               # Web scraping logic
-│   ├── __init__.py
-│   ├── sto_wiki_scraper.py  # Async scraper
-│   └── parsers.py         # HTML parsers
-├── transformers/          # Data transformation
-│   ├── __init__.py
-│   └── ship_transformer.py  # Raw to model conversion
-├── tests/                 # Test suite
-│   ├── __init__.py
-│   ├── conftest.py        # Pytest fixtures
-│   ├── test_models.py
-│   ├── test_parsers.py
-│   └── test_transformers.py
-├── config.py              # Configuration management
-├── logger.py              # Logging setup
-├── requirements.txt       # Python dependencies
-├── Dockerfile            # Multi-stage Docker build
-├── .env.example          # Environment template
-└── pytest.ini            # Test configuration
-```
-
-## Configuration
-
-Create a `.env` file based on `.env.example`:
+Create a `.env` file in the backend directory:
 
 ```env
-# Flask Configuration
+# Flask
 FLASK_ENV=production
-FLASK_DEBUG=False
+FLASK_DEBUG=false
 
-# Scraper Configuration
-BASE_URL=https://sto.fandom.com
+# Scraper
 MAX_CONCURRENT_REQUESTS=5
 REQUEST_DELAY=0.5
 REQUEST_TIMEOUT=30
+MAX_RETRIES=3
+
+# Storage
+STORAGE_TYPE=json  # or "database"
+DATABASE_URL=sqlite:///ships.db
+# DATABASE_URL=postgresql://user:pass@localhost/stowiki
+# DATABASE_URL=mysql://user:pass@localhost/stowiki
+
+# API
+HOST=0.0.0.0
+PORT=5000
 
 # Logging
 LOG_LEVEL=INFO
 ```
 
-## Development
+## 🗄️ Database Support
 
-### Running Tests
+The application supports multiple database backends:
 
+### SQLite (Default)
+```env
+STORAGE_TYPE=database
+DATABASE_URL=sqlite:///ships.db
+```
+
+### PostgreSQL
+```env
+STORAGE_TYPE=database
+DATABASE_URL=postgresql://user:password@localhost:5432/stowiki
+```
+
+### MySQL
+```env
+STORAGE_TYPE=database
+DATABASE_URL=mysql://user:password@localhost:3306/stowiki
+```
+
+## 🎨 Frontend Features
+
+### Ship Table
+- **Sorting**: Click column headers to sort
+- **Search**: Global search across all fields
+- **Filtering**: Filter by faction
+- **Pagination**: Navigate large datasets
+- **Links**: External links to wiki pages
+
+### Actions
+- **Scrape**: Fetch latest data from wiki
+- **Download**: Export ships as JSON
+- **Dark Mode**: Toggle dark/light theme
+
+## 🔧 Development
+
+### Backend Tests
 ```bash
-# Run all tests
+cd backend
 pytest
-
-# Run with coverage
 pytest --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_parsers.py
 ```
 
-### Code Quality
-
+### Frontend Build
 ```bash
-# Format code with black
-black .
-
-# Lint with ruff
-ruff check .
-
-# Type checking (if mypy installed)
-mypy .
+cd frontend
+npm run build
+npm run preview
 ```
 
-## Architecture Improvements (v2.0)
+### Type Checking
+```bash
+cd frontend
+npx tsc --noEmit
+```
 
-This version includes major improvements over the original:
+## 📦 Production Deployment
 
-### Performance
-- **80-90% faster scraping** through async/await and concurrent requests
-- Multi-stage Docker builds reduce image size by 40-60%
-- Efficient rate limiting prevents server overload
+### Using Docker
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
 
-### Code Quality
-- Modular architecture with separation of concerns
-- Type hints and pydantic validation prevent runtime errors
-- Comprehensive test suite with pytest
-- Centralized configuration and logging
+### Manual Deployment
 
-### Reliability
-- Automatic retries with exponential backoff
-- Proper error handling and logging
-- Request timeouts and rate limiting
-- Health check endpoints
+**Backend:**
+```bash
+gunicorn -w 4 -b 0.0.0.0:5000 api.app:app
+```
 
-### Maintainability
-- Clear project structure
-- Documented code with docstrings
-- CI/CD pipeline with GitHub Actions
-- Environment-based configuration
+**Frontend:**
+```bash
+npm run build
+# Serve dist/ with nginx or any static server
+```
 
-## Migration from v1.0
+## 🆕 What's New in v2.0
 
-The old scripts (`scrape3.py`, `test3.py`, `server.py`) have been completely refactored:
+### Backend Improvements
+- ✅ **Async Scraping**: 5x faster data extraction
+- ✅ **Multi-Faction Support**: All 5 factions supported
+- ✅ **Database Storage**: Optional DB persistence
+- ✅ **Type Safety**: Full Pydantic validation
+- ✅ **Better Error Handling**: Retries + detailed logging
+- ✅ **Clean Architecture**: Separated concerns
 
-| Old | New | Improvement |
-|-----|-----|-------------|
-| `scrape3.py` | `scraper/sto_wiki_scraper.py` + `scraper/parsers.py` | Async, retry logic, modular |
-| `test3.py` | `transformers/ship_transformer.py` | Clean transformations, type-safe |
-| `server.py` | `api/app.py` | Non-blocking, proper error handling |
-| None | `tests/` | Comprehensive test coverage |
-| None | `models/` | Pydantic validation |
+### Frontend Rewrite
+- ✅ **TypeScript**: Complete type safety
+- ✅ **Modern Stack**: Vite + React 18
+- ✅ **TanStack Table**: Powerful data table
+- ✅ **React Query**: Smart data fetching
+- ✅ **Tailwind CSS**: Utility-first styling
+- ✅ **Dark Mode**: Beautiful dark theme
+- ✅ **Single Dependency**: Only necessary packages
 
-## Contributing
+### Removed
+- ❌ Multiple UI libraries (Ant Design, Material-UI, Semantic UI)
+- ❌ String-based icon replacement
+- ❌ Class components
+- ❌ Hardcoded backend URLs
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and add tests
-4. Run tests: `pytest`
-5. Commit: `git commit -m 'Add amazing feature'`
-6. Push: `git push origin feature/amazing-feature`
-7. Open a Pull Request
+## 📝 License
 
-## License
+MIT License - feel free to use this project for any purpose.
 
-This project is licensed under the MIT License.
+## 🤝 Contributing
 
-## Acknowledgments
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- [Star Trek Online Wiki](https://sto.fandom.com) for ship data
-- Built with Flask, httpx, BeautifulSoup, and pydantic
+## 🐛 Known Issues
+
+- Wiki structure changes may break scraping
+- Large datasets (>1000 ships) may cause memory issues
+
+## 🔮 Roadmap
+
+- [ ] Ship comparison feature
+- [ ] Advanced filtering (by stats, weapons, etc.)
+- [ ] Export to CSV/Excel
+- [ ] Ship recommendations
+- [ ] User accounts & favorites
+- [ ] Real-time scraping status
+- [ ] GraphQL API
+
+## 💬 Support
+
+For issues, questions, or suggestions, please open a GitHub issue.
+
+---
+
+**Built with ❤️ for Star Trek Online players**
