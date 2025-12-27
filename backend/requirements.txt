@@ -10,3 +10,12 @@ gunicorn==23.0.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
+
+# Database support
+SQLAlchemy==2.0.36
+aiosqlite==0.20.0
+asyncpg==0.30.0
+aiomysql==0.2.0
+
+# Async file operations
+aiofiles==24.1.0
