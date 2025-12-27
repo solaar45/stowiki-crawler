@@ -17,11 +17,16 @@ class Settings(BaseSettings):
     flask_debug: bool = False
     
     # Scraper Configuration
-    base_url: str = "https://sto.fandom.com"
-    max_concurrent_requests: int = 5
-    request_delay: float = 0.5
+    base_url: str = "https://stowiki.net"  # Updated from sto.fandom.com
+    max_concurrent_requests: int = 10  # Increased from 5 for faster scraping
+    request_delay: float = 0.2  # Reduced from 0.5 for faster scraping
     request_timeout: int = 30
     max_retries: int = 3
+    
+    # Cache Configuration
+    enable_cache: bool = True
+    cache_ttl: int = 3600  # Cache for 1 hour (in seconds)
+    cache_dir: str = "cache"
     
     # Storage Configuration
     storage_type: str = "json"  # "json" or "database"

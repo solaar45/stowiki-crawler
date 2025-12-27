@@ -20,7 +20,7 @@ class Faction(str, Enum):
         Returns:
             Full wiki URL for the faction's ship list
         """
-        base_url = "https://sto.fandom.com/wiki"
+        base_url = "https://stowiki.net/wiki"  # Updated from sto.fandom.com
         
         urls = {
             cls.FEDERATION: f"{base_url}/Federation_playable_starship",
