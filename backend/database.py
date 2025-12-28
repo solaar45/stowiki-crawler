@@ -474,26 +474,32 @@ class ShipDatabase:
         
         conn.close()
         
-        # Map faction names to keys
+        # Map faction names to keys and normalize display names
         faction_map = {
-            "Federation": "federation",
-            "Klingon": "klingon",
-            "Klingon Empire": "klingon",
-            "Romulan Republic": "romulan",
-            "Romulan": "romulan",
-            "Dominion": "dominion",
-            "Cross-Faction": "cross-faction"
+            "Federation": ("federation", "Federation"),
+            "Klingon": ("klingon", "Klingon"),
+            "Klingon Empire": ("klingon", "Klingon"),
+            "Romulan Republic": ("romulan", "Romulan"),
+            "Romulan": ("romulan", "Romulan"),
+            "Dominion": ("dominion", "Dominion"),
+            "Cross-Faction": ("cross-faction", "Cross-Faction")
         }
         
         # Merge counts for same faction keys
         merged_counts = {}
         for name, count in faction_counts.items():
-            key = faction_map.get(name, name.lower().replace(' ', '-'))
+            mapping = faction_map.get(name)
+            if mapping:
+                key, display_name = mapping
+            else:
+                key = name.lower().replace(' ', '-')
+                display_name = name
+            
             if key in merged_counts:
                 merged_counts[key]['count'] += count
             else:
                 merged_counts[key] = {
-                    'name': name,
+                    'name': display_name,
                     'key': key,
                     'count': count
                 }
