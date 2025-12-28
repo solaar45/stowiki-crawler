@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ShipWeapons {
   fore: number;
@@ -20,6 +20,7 @@ interface ShipData {
   link: string;
   tier: number | null;
   faction: string | null;
+  factionlede: string | null;
   type: string | null;
   released: string | null;
   device_slots: number | null;
@@ -29,26 +30,46 @@ interface ShipData {
   console_slots: string | null;
 }
 
+interface FactionSummary {
+  faction: string;
+  factionlede: string;
+  count: number;
+}
+
 export function ApiDemo() {
   const [ships, setShips] = useState<ShipData[]>([]);
+  const [filteredShips, setFilteredShips] = useState<ShipData[]>([]);
+  const [factions, setFactions] = useState<FactionSummary[]>([]);
+  const [selectedFaction, setSelectedFaction] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scrapedCount, setScrapedCount] = useState(0);
 
-  const fetchDominionShips = async () => {
+  // Fetch all ships on mount
+  useEffect(() => {
+    fetchAllShips();
+    fetchFactions();
+  }, []);
+
+  // Filter ships when selection changes
+  useEffect(() => {
+    if (selectedFaction === null) {
+      setFilteredShips(ships);
+    } else {
+      setFilteredShips(ships.filter(ship => ship.factionlede === selectedFaction));
+    }
+  }, [selectedFaction, ships]);
+
+  const fetchAllShips = async () => {
     setLoading(true);
     setError(null);
-    setShips([]);
-    setScrapedCount(0);
 
     try {
-      // Call scrape endpoint (without saving)
-      const response = await fetch('http://localhost:5000/scrape/dominion');
+      const response = await fetch('http://localhost:5000/api/ships?limit=1000');
       const data = await response.json();
 
       if (data.success) {
         setShips(data.ships || []);
-        setScrapedCount(data.count || 0);
+        setFilteredShips(data.ships || []);
       } else {
         setError(data.error || 'Failed to fetch ships');
       }
@@ -59,46 +80,58 @@ export function ApiDemo() {
     }
   };
 
+  const fetchFactions = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/factions');
+      const data = await response.json();
+
+      if (data.success) {
+        setFactions(data.factions || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch factions:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            🚀 MediaWiki API Demo
+            🚀 Cargo API · Real-time Data
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Live API Test - Dominion Ships ohne Speicherung
+            {ships.length} Ships · SQLite Database · Sub-50ms Response
           </p>
         </div>
 
-        {/* Fetch Button */}
-        <div className="mb-6">
-          <button
-            onClick={fetchDominionShips}
-            disabled={loading}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-3 text-lg font-semibold"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                Scraping Dominion Ships...
-              </>
-            ) : (
-              <>
-                <span>🎯</span>
-                Fetch Dominion Ships (API)
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Stats */}
-        {scrapedCount > 0 && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-            <p className="text-green-800 dark:text-green-300 font-semibold">
-              ✅ Successfully fetched {scrapedCount} Dominion ships via MediaWiki API!
-            </p>
+        {/* Faction Filters */}
+        {factions.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedFaction(null)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                selectedFaction === null
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+              }`}
+            >
+              All ({ships.length})
+            </button>
+            {factions.map((faction) => (
+              <button
+                key={faction.factionlede}
+                onClick={() => setSelectedFaction(faction.factionlede)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedFaction === faction.factionlede
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {faction.factionlede} ({faction.count})
+              </button>
+            ))}
           </div>
         )}
 
@@ -116,13 +149,13 @@ export function ApiDemo() {
           <div className="flex flex-col items-center justify-center py-20">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-4" />
             <p className="text-gray-600 dark:text-gray-400 text-lg">
-              Fetching ships from MediaWiki API...
+              Loading ships from database...
             </p>
           </div>
         )}
 
         {/* Ships Table */}
-        {ships.length > 0 && !loading && (
+        {filteredShips.length > 0 && !loading && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -164,13 +197,13 @@ export function ApiDemo() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {ships.map((ship, index) => (
+                  {filteredShips.map((ship, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                         {ship.name}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {ship.faction || '-'}
+                        {ship.factionlede || ship.faction || '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
                         {ship.tier || '-'}
@@ -227,7 +260,7 @@ export function ApiDemo() {
               </summary>
               <div className="p-6 bg-gray-900 overflow-x-auto">
                 <pre className="text-xs text-green-400 font-mono">
-                  {JSON.stringify(ships, null, 2)}
+                  {JSON.stringify(filteredShips, null, 2)}
                 </pre>
               </div>
             </details>
@@ -237,15 +270,14 @@ export function ApiDemo() {
         {/* Info Box */}
         <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
-            ℹ️ API Demo Info
+            ℹ️ Cargo API Info
           </h3>
           <ul className="text-blue-800 dark:text-blue-400 space-y-1 text-sm">
-            <li>• Nutzt <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">GET /scrape/dominion</code> Endpoint</li>
-            <li>• Scrapt <strong>live</strong> von stowiki.net via MediaWiki API</li>
-            <li>• <strong>Keine Speicherung</strong> - Daten nur im Browser</li>
-            <li>• Transformiert automatisch mit ShipTransformer</li>
-            <li>• Zeigt strukturierte Felder: Weapons, Stats, etc.</li>
-            <li>• ~1 Sekunde für 43 Ships (10x parallele Requests)</li>
+            <li>• Uses <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">GET /api/ships</code> endpoint</li>
+            <li>• Data from <strong>SQLite database</strong> (ships.db)</li>
+            <li>• Sub-50ms response time</li>
+            <li>• Background sync every 8 hours</li>
+            <li>• Faction filtering with real-time counts</li>
           </ul>
         </div>
       </div>
