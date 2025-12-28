@@ -3,6 +3,7 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   getFacetedUniqueValues,
   getFacetedMinMaxValues,
   flexRender,
@@ -12,7 +13,7 @@ import {
   type FilterFn,
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, Check, X, ExternalLink, FilterX } from 'lucide-react';
+import { ArrowUpDown, ChevronLeft, ChevronRight, Check, X, ExternalLink, FilterX } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Ship } from '../lib/api';
 import { ColumnFilter } from './ColumnFilter';
@@ -654,11 +655,12 @@ export function ShipsTable({ ships }: ShipsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues(),
     initialState: {
       pagination: {
-        pageSize: Number.MAX_SAFE_INTEGER, // Show all rows
+        pageSize: 25,
       },
     },
   });
@@ -677,11 +679,6 @@ export function ShipsTable({ ships }: ShipsTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Ship Count */}
-      <div className="text-sm text-gray-600 dark:text-gray-400">
-        Showing {table.getFilteredRowModel().rows.length} of {ships.length} ships
-      </div>
-
       {/* Search and Clear Filters */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
@@ -703,16 +700,20 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           )}
         </div>
 
-        {/* Clear All Filters Button */}
-        {hasActiveFilters && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
-          >
-            <FilterX className="h-4 w-4" />
-            Clear All Filters
-          </button>
-        )}
+        {/* Clear All Filters Button - Always Visible */}
+        <button
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilters}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors border',
+            hasActiveFilters
+              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 dark:border-blue-500 shadow-sm'
+              : 'bg-transparent text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed'
+          )}
+        >
+          <FilterX className="h-4 w-4" />
+          Clear All Filters
+        </button>
       </div>
 
       {/* Table */}
@@ -936,6 +937,34 @@ export function ShipsTable({ ships }: ShipsTableProps) {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex-1 text-sm text-gray-700 dark:text-gray-400">
+          Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+          {Math.min(
+            (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+            table.getFilteredRowModel().rows.length
+          )}{' '}
+          of {table.getFilteredRowModel().rows.length} results
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </div>
       </div>
     </div>
