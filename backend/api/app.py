@@ -34,7 +34,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Initialize database and scraper
-SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', 8))
+SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', 12))
 DB_PATH = os.getenv('DB_PATH', 'ships.db')
 
 db = ShipDatabase(db_path=DB_PATH, sync_interval_hours=SYNC_INTERVAL_HOURS)
@@ -313,7 +313,8 @@ def trigger_sync():
         if sync_type == 'full':
             thread = threading.Thread(target=db.full_sync, args=(scraper,), daemon=True)
         else:
-            thread = threading.Thread(target=db.smart_sync, args=(scraper,), daemon=True)
+            # Default to incremental bulk sync for manual triggers
+            thread = threading.Thread(target=db.incremental_sync, args=(scraper,), daemon=True)
         
         thread.start()
         

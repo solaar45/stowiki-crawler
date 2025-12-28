@@ -337,6 +337,122 @@ class CargoShipScraper:
         ]
         return ",".join(fields)
 
+    def _get_bulk_field_list(self) -> str:
+        """Return an expanded field list suitable for bulk Cargo queries.
+
+        This includes additional fields like images, power stats, devices, etc.
+        """
+        fields = [
+            "Ships._pageName=pageName",
+            "Ships.name=name",
+            "Ships.image=image",
+            "Ships.image2=image2",
+            "Ships.released=released",
+            "Ships.internalname=internalname",
+            "Ships.fc=fc",
+            "Ships.faction=faction",
+            "Ships.facsort=facsort",
+            "Ships.rank=rank",
+            "Ships.ranklevel=ranklevel",
+            "Ships.tier=tier",
+            "Ships.upgradecost=upgradecost",
+            "Ships.type=type",
+            "Ships.hull=hull",
+            "Ships.hullmod=hullmod",
+            "Ships.shieldmod=shieldmod",
+            "Ships.turnrate=turnrate",
+            "Ships.impulse=impulse",
+            "Ships.inertia=inertia",
+            "Ships.powerall=powerall",
+            "Ships.powerweapons=powerweapons",
+            "Ships.powershields=powershields",
+            "Ships.powerengines=powerengines",
+            "Ships.powerauxiliary=powerauxiliary",
+            "Ships.powerboost=powerboost",
+            "Ships.boffs=boffs",
+            "Ships.fore=fore",
+            "Ships.aft=aft",
+            "Ships.equipcannons=equipcannons",
+            "Ships.devices=devices",
+            "Ships.consolestac=consolestac",
+            "Ships.consoleseng=consoleseng",
+            "Ships.consolessci=consolessci",
+            "Ships.uniconsole=uniconsole",
+            "Ships.t5uconsole=t5uconsole",
+            "Ships.experimental=experimental",
+            "Ships.secdeflector=secdeflector",
+            "Ships.hangars=hangars",
+            "Ships.cost=cost",
+            "Ships.abilities=abilities",
+            "Ships.admiraltyeng=admiraltyeng",
+            "Ships.admiraltytac=admiraltytac",
+            "Ships.admiraltysci=admiraltysci",
+            "Ships.displayprefix=displayprefix",
+            "Ships.displayclass=displayclass",
+            "Ships.displaytype=displaytype",
+            "Ships.factionlede=factionlede",
+        ]
+
+        return ",".join(fields)
+
+    def get_all_ships_bulk(self, limit: int = 5000) -> List[Dict]:
+        """Fetch all ships in bulk using an expanded Cargo `fields` list.
+
+        This returns parsed ship dicts similar to `get_all_ships()` but in far
+        fewer HTTP requests (paginated with large batch size).
+        Raises an exception on unexpected failures so callers can fallback.
+        """
+        ships: List[Dict] = []
+        offset = 0
+        batch_size = 500  # Cargo typical max
+
+        fields = self._get_bulk_field_list()
+
+        while len(ships) < limit:
+            params = {
+                "action": "cargoquery",
+                "tables": "Ships",
+                "fields": fields,
+                "limit": min(batch_size, limit - len(ships)),
+                "offset": offset,
+                "format": "json",
+            }
+
+            try:
+                response = self.client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                if "cargoquery" in data:
+                    results = data["cargoquery"]
+                    if not results:
+                        break
+
+                    for item in results:
+                        ship = self._parse_cargo_result(item.get("title", {}))
+                        if ship:
+                            ships.append(ship)
+
+                    logger.info(f"Bulk fetched {len(results)} ships (total: {len(ships)})")
+
+                    if len(results) < batch_size:
+                        break
+
+                    offset += batch_size
+                else:
+                    # Cargo returned error or unexpected shape — raise to allow fallback
+                    raise RuntimeError(f"Unexpected cargo response: {data.get('error')}")
+
+            except Exception as e:
+                logger.error(f"Bulk fetch failed at offset {offset}: {e}", exc_info=True)
+                # Re-raise to let caller decide to fallback
+                raise
+
+            time.sleep(0.05)
+
+        logger.info(f"Bulk fetched total of {len(ships)} ships")
+        return ships
+
     def _parse_cargo_result(self, cargo_data: Dict) -> Optional[Dict]:
         """Parse ship data from Cargo query result.
         
@@ -349,6 +465,14 @@ class CargoShipScraper:
 
             # Basic info - DECODE HTML ENTITIES!
             ship_data['name'] = html.unescape(cargo_data.get('pageName', ''))
+            # Additional basic/metadata fields
+            ship_data['display_name_raw'] = html.unescape(cargo_data.get('name', '') or '')
+            ship_data['image'] = cargo_data.get('image')
+            ship_data['image2'] = cargo_data.get('image2')
+            ship_data['released'] = cargo_data.get('released')
+            ship_data['internalname'] = cargo_data.get('internalname')
+            ship_data['fc'] = cargo_data.get('fc')
+            ship_data['facsort'] = cargo_data.get('facsort')
             
             # FIX: Use factionlede (primary faction) instead of faction (raw list)
             raw_factionlede = html.unescape(cargo_data.get('factionlede', '')).strip()
@@ -365,6 +489,8 @@ class CargoShipScraper:
             ship_data['tier'] = self._parse_int(cargo_data.get('tier'))
             ship_data['type'] = self._parse_list(cargo_data.get('type', ''))
             ship_data['rank'] = cargo_data.get('rank')
+            ship_data['ranklevel'] = self._parse_int(cargo_data.get('ranklevel'))
+            ship_data['upgradecost'] = cargo_data.get('upgradecost')
             ship_data['cost'] = cargo_data.get('cost')
 
             # Display
@@ -379,17 +505,36 @@ class CargoShipScraper:
             ship_data['turnrate'] = self._parse_float(cargo_data.get('turnrate'))
             ship_data['impulse'] = self._parse_float(cargo_data.get('impulse'))
             ship_data['inertia'] = self._parse_float(cargo_data.get('inertia'))
+            # Power stats (may be missing)
+            ship_data['powerall'] = self._parse_float(cargo_data.get('powerall'))
+            ship_data['powerweapons'] = self._parse_float(cargo_data.get('powerweapons'))
+            ship_data['powershields'] = self._parse_float(cargo_data.get('powershields'))
+            ship_data['powerengines'] = self._parse_float(cargo_data.get('powerengines'))
+            ship_data['powerauxiliary'] = self._parse_float(cargo_data.get('powerauxiliary'))
+            ship_data['powerboost'] = self._parse_float(cargo_data.get('powerboost'))
 
             # Weapons
             ship_data['fore'] = self._parse_int(cargo_data.get('fore'))
             ship_data['aft'] = self._parse_int(cargo_data.get('aft'))
             ship_data['equipcannons'] = cargo_data.get('equipcannons', 'no')
 
+            # Devices
+            devices_val = cargo_data.get('devices')
+            if devices_val:
+                # try parse as list; fallback to string
+                ship_data['devices'] = self._parse_list(devices_val) if isinstance(devices_val, str) else devices_val
+            else:
+                ship_data['devices'] = []
+
             # Consoles
             ship_data['consolestac'] = self._parse_int(cargo_data.get('consolestac'))
             ship_data['consoleseng'] = self._parse_int(cargo_data.get('consoleseng'))
             ship_data['consolessci'] = self._parse_int(cargo_data.get('consolessci'))
             ship_data['consolesuni'] = self._parse_int(cargo_data.get('consolesuni'))
+            ship_data['uniconsole'] = self._parse_int(cargo_data.get('uniconsole') or cargo_data.get('consolesuni'))
+            ship_data['t5uconsole'] = self._parse_int(cargo_data.get('t5uconsole'))
+            ship_data['experimental'] = cargo_data.get('experimental')
+            ship_data['secdeflector'] = cargo_data.get('secdeflector')
 
             # Equipment
             ship_data['hangars'] = self._parse_int(cargo_data.get('hangars'))

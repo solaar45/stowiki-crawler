@@ -8,6 +8,7 @@ SQLite-based storage with:
 - Smart sync (only new/changed ships)
 """
 import sqlite3
+import re
 import json
 import logging
 import threading
@@ -32,7 +33,7 @@ class ShipDatabase:
     - Smart sync (only updates changed ships)
     """
     
-    def __init__(self, db_path: str = "ships.db", sync_interval_hours: int = 8):
+    def __init__(self, db_path: str = "ships.db", sync_interval_hours: int = 12):
         """
         Initialize database
         
@@ -58,6 +59,7 @@ class ShipDatabase:
             CREATE TABLE IF NOT EXISTS ships (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
+                display_name_raw TEXT,
                 
                 -- Faction
                 faction TEXT,  -- JSON array
@@ -95,7 +97,14 @@ class ShipDatabase:
                 
                 -- Equipment
                 hangars INTEGER,
-                
+                -- Media / metadata
+                image TEXT,
+                image2 TEXT,
+                released TEXT,
+                internalname TEXT,
+                fc TEXT,
+                facsort TEXT,
+
                 -- Bridge Officers
                 boffs TEXT,
                 
@@ -159,7 +168,7 @@ class ShipDatabase:
         
         # Initialize sync status if not exists
         cursor.execute("""
-            INSERT OR IGNORE INTO sync_status (id, sync_interval_hours) 
+                INSERT OR IGNORE INTO sync_status (id, sync_interval_hours) 
             VALUES (1, ?)
         """, (self.sync_interval_hours,))
         
@@ -167,6 +176,47 @@ class ShipDatabase:
         conn.close()
         
         logger.info("Database schema initialized")
+
+        # Ensure new columns exist in older databases by attempting to add them
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            extra_columns = [
+                ("display_name_raw", "TEXT"),
+                ("ranklevel", "INTEGER"),
+                ("upgradecost", "TEXT"),
+                ("powerall", "REAL"),
+                ("powerweapons", "REAL"),
+                ("powershields", "REAL"),
+                ("powerengines", "REAL"),
+                ("powerauxiliary", "REAL"),
+                ("powerboost", "REAL"),
+                ("devices", "TEXT"),
+                ("uniconsole", "INTEGER"),
+                ("t5uconsole", "INTEGER"),
+                ("experimental", "TEXT"),
+                ("secdeflector", "TEXT"),
+                ("image", "TEXT"),
+                ("image2", "TEXT"),
+                ("released", "TEXT"),
+                ("internalname", "TEXT"),
+                ("fc", "TEXT"),
+                ("facsort", "TEXT"),
+            ]
+
+            for col, coltype in extra_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE ships ADD COLUMN {col} {coltype}")
+                except Exception:
+                    # ignore if column already exists or cannot be added
+                    pass
+
+            conn.commit()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     
     def _hash_ship_data(self, ship: Dict) -> str:
         """Generate hash of ship data for change detection"""
@@ -285,6 +335,17 @@ class ShipDatabase:
                 ship['type'] = json.loads(ship['type'])
             else:
                 ship['type'] = []
+
+            # Parse devices (may be stored as JSON list or comma-separated string)
+            if ship.get('devices'):
+                try:
+                    dev = json.loads(ship['devices'])
+                    ship['devices'] = dev if isinstance(dev, list) else [dev]
+                except Exception:
+                    # fallback: split on commas/semicolons
+                    ship['devices'] = [d.strip() for d in re.split(r'[,;]', ship['devices']) if d.strip()]
+            else:
+                ship['devices'] = []
             
             # Parse faction
             if ship.get('faction'):
@@ -331,6 +392,48 @@ class ShipDatabase:
             if ship.get('displaytype'):
                 parts.append(ship['displaytype'])
             ship['display_name'] = ' '.join(parts) if parts else ship['name']
+
+            # Normalize new bulk fields to ensure API consistency
+            # Images / metadata
+            ship['image'] = ship.get('image')
+            ship['image2'] = ship.get('image2')
+            ship['released'] = ship.get('released')
+            ship['internalname'] = ship.get('internalname')
+            ship['fc'] = ship.get('fc')
+            ship['facsort'] = ship.get('facsort')
+
+            # Power stats (ensure floats or None)
+            for p in ('powerall', 'powerweapons', 'powershields', 'powerengines', 'powerauxiliary', 'powerboost'):
+                val = ship.get(p)
+                try:
+                    ship[p] = float(val) if val is not None and val != '' else None
+                except Exception:
+                    ship[p] = None
+
+            # Rank / upgrade
+            try:
+                ship['ranklevel'] = int(ship['ranklevel']) if ship.get('ranklevel') not in (None, '') else None
+            except Exception:
+                ship['ranklevel'] = None
+            ship['upgradecost'] = ship.get('upgradecost')
+
+            # Devices (ensure list)
+            if 'devices' in ship and ship['devices'] is not None:
+                if isinstance(ship['devices'], str):
+                    try:
+                        ship['devices'] = json.loads(ship['devices'])
+                    except Exception:
+                        ship['devices'] = [d.strip() for d in re.split(r'[,;]', ship['devices']) if d.strip()]
+                elif not isinstance(ship['devices'], list):
+                    ship['devices'] = [ship['devices']]
+            else:
+                ship['devices'] = []
+
+            # Flags / extra fields
+            ship['uniconsole'] = ship.get('uniconsole')
+            ship['t5uconsole'] = ship.get('t5uconsole')
+            ship['experimental'] = ship.get('experimental')
+            ship['secdeflector'] = ship.get('secdeflector')
         
         return ships
     
@@ -347,6 +450,44 @@ class ShipDatabase:
             ship = dict(row)
             ship['type'] = json.loads(ship['type']) if ship['type'] else []
             ship['faction'] = json.loads(ship['faction']) if ship['faction'] else []
+
+            # Normalize additional fields similar to get_ships
+            ship['image'] = ship.get('image')
+            ship['image2'] = ship.get('image2')
+            ship['released'] = ship.get('released')
+            ship['internalname'] = ship.get('internalname')
+            ship['fc'] = ship.get('fc')
+            ship['facsort'] = ship.get('facsort')
+
+            for p in ('powerall', 'powerweapons', 'powershields', 'powerengines', 'powerauxiliary', 'powerboost'):
+                val = ship.get(p)
+                try:
+                    ship[p] = float(val) if val is not None and val != '' else None
+                except Exception:
+                    ship[p] = None
+
+            try:
+                ship['ranklevel'] = int(ship['ranklevel']) if ship.get('ranklevel') not in (None, '') else None
+            except Exception:
+                ship['ranklevel'] = None
+            ship['upgradecost'] = ship.get('upgradecost')
+
+            if 'devices' in ship and ship['devices'] is not None:
+                if isinstance(ship['devices'], str):
+                    try:
+                        ship['devices'] = json.loads(ship['devices'])
+                    except Exception:
+                        ship['devices'] = [d.strip() for d in re.split(r'[,;]', ship['devices']) if d.strip()]
+                elif not isinstance(ship['devices'], list):
+                    ship['devices'] = [ship['devices']]
+            else:
+                ship['devices'] = []
+
+            ship['uniconsole'] = ship.get('uniconsole')
+            ship['t5uconsole'] = ship.get('t5uconsole')
+            ship['experimental'] = ship.get('experimental')
+            ship['secdeflector'] = ship.get('secdeflector')
+
             return ship
         
         return None
@@ -363,7 +504,7 @@ class ShipDatabase:
         """
         name = ship_data['name']
         
-        # Prepare data for database
+        # Prepare data for database and restrict to existing table columns
         db_data = ship_data.copy()
         
         # Convert lists to JSON
@@ -371,6 +512,9 @@ class ShipDatabase:
             db_data['type'] = json.dumps(db_data['type'])
         if 'faction' in db_data:
             db_data['faction'] = json.dumps(db_data['faction'])
+        # Devices may be a comma-separated string or a list; store as JSON if list
+        if 'devices' in db_data and isinstance(db_data['devices'], (list, tuple)):
+            db_data['devices'] = json.dumps(list(db_data['devices']))
         
         # Generate hash
         data_hash = self._hash_ship_data(db_data)
@@ -378,53 +522,56 @@ class ShipDatabase:
         
         # Check if ship exists
         existing = self.get_ship_by_name(name)
-        
+
         conn = sqlite3.connect(self.db_path)
-        
+        cursor = conn.cursor()
+
+        # Get existing ship table columns and restrict db_data to those
+        cursor.execute("PRAGMA table_info(ships)")
+        cols = [r[1] for r in cursor.fetchall()]
+
+        # Ensure we always include 'name' and 'data_hash'
+        allowed = set(cols)
+        filtered_db_data = {k: v for k, v in db_data.items() if k in allowed}
+
         if not existing:
-            # Insert new ship
-            fields = list(db_data.keys())
+            # Insert new ship (only allowed columns)
+            fields = list(filtered_db_data.keys())
             placeholders = ','.join(['?' for _ in fields])
-            
-            conn.execute(f"""
-                INSERT INTO ships ({','.join(fields)}) 
-                VALUES ({placeholders})
-            """, [db_data[f] for f in fields])
-            
+
+            cursor.execute(f"INSERT INTO ships ({','.join(fields)}) VALUES ({placeholders})",
+                           [filtered_db_data[f] for f in fields])
             conn.commit()
             conn.close()
-            
+
             # Log creation
-            self._log_change(name, 'created', new_values=db_data)
-            
+            self._log_change(name, 'created', new_values=filtered_db_data)
+
             return 'created'
-        
+
         else:
-            # Check if data changed
+            # If hash unchanged, skip
             if existing.get('data_hash') == data_hash:
                 conn.close()
                 return 'unchanged'
-            
-            # Detect changes
-            changed_fields, old_values, new_values = self._detect_changes(existing, db_data)
-            
-            # Update ship
-            db_data['updated_at'] = datetime.now().isoformat()
-            
-            set_clause = ','.join([f"{f} = ?" for f in db_data.keys()])
-            
-            conn.execute(f"""
-                UPDATE ships 
-                SET {set_clause}
-                WHERE name = ?
-            """, [db_data[f] for f in db_data.keys()] + [name])
-            
+
+            # Detect changes against existing data (use keys present in existing record)
+            changed_fields, old_values, new_values = self._detect_changes(existing, filtered_db_data)
+
+            # Update ship (only allowed columns)
+            filtered_db_data['updated_at'] = datetime.now().isoformat()
+
+            set_clause = ','.join([f"{f} = ?" for f in filtered_db_data.keys()])
+
+            cursor.execute(f"UPDATE ships SET {set_clause} WHERE name = ?",
+                           [filtered_db_data[f] for f in filtered_db_data.keys()] + [name])
+
             conn.commit()
             conn.close()
-            
+
             # Log update
             self._log_change(name, 'updated', changed_fields, old_values, new_values)
-            
+
             return 'updated'
     
     def delete_ship(self, name: str):
@@ -635,7 +782,8 @@ class ShipDatabase:
             try:
                 if self.needs_sync():
                     logger.info("Starting automatic background sync...")
-                    self.smart_sync(scraper)
+                    # Use incremental bulk sync to apply only changed/new ships
+                    self.incremental_sync(scraper)
             except Exception as e:
                 logger.error(f"Background sync failed: {e}", exc_info=True)
             
@@ -738,7 +886,7 @@ class ShipDatabase:
             self.update_sync_status(is_syncing=False)
             raise
     
-    def full_sync(self, scraper):
+    def full_sync(self, scraper, use_bulk: bool = True):
         """
         Full sync: Parse all ships from wiki Cargo database
         
@@ -755,30 +903,68 @@ class ShipDatabase:
         stats = {'added': 0, 'updated': 0, 'unchanged': 0}
         
         try:
-            # Get all ship names from Cargo database
-            logger.info("Fetching all ship names from Cargo...")
+            if use_bulk and hasattr(scraper, 'get_all_ships_bulk'):
+                try:
+                    logger.info("Attempting bulk fetch of all ships from Cargo...")
+                    all_ships = scraper.get_all_ships_bulk(limit=10000)
+
+                    logger.info(f"Bulk fetch returned {len(all_ships)} ships")
+
+                    # Upsert all ships
+                    for i, ship_data in enumerate(all_ships, 1):
+                        try:
+                            logger.info(f"Upserting ship {i}/{len(all_ships)}: {ship_data.get('name')}")
+                            result = self.upsert_ship(ship_data)
+                            if result == 'created':
+                                stats['added'] += 1
+                            elif result == 'updated':
+                                stats['updated'] += 1
+                            elif result == 'unchanged':
+                                stats['unchanged'] += 1
+                        except Exception as e:
+                            logger.error(f"Failed to upsert ship {ship_data.get('name')}: {e}", exc_info=True)
+
+                    duration = int(time.time() - start_time)
+
+                    self.update_sync_status(
+                        last_full_sync=datetime.now().isoformat(),
+                        is_syncing=False,
+                        ships_added=stats['added'],
+                        ships_updated=stats['updated'],
+                        last_sync_duration_seconds=duration
+                    )
+
+                    logger.info(f"Bulk full sync completed in {duration}s: "
+                               f"{stats['added']} added, {stats['updated']} updated, "
+                               f"{stats['unchanged']} unchanged")
+                    return
+                except Exception as e:
+                    logger.warning(f"Bulk fetch failed, falling back to per-ship parsing: {e}")
+
+            # Fallback: original per-ship parsing flow
+            logger.info("Fetching all ship names from Cargo (fallback path)...")
             all_ship_names = scraper.get_category_members(limit=1000)
-            
+
             logger.info(f"Found {len(all_ship_names)} ships on wiki")
-            
+
             # Get current database ship names for comparison
             db_ships = set(self.get_all_ship_names())
             logger.info(f"Found {len(db_ships)} ships in database")
-            
+
             # Determine which ships are new
             new_ships = set(all_ship_names) - db_ships
             logger.info(f"Found {len(new_ships)} new ships to add")
-            
+
             # Parse each ship from Cargo
             for i, ship_name in enumerate(all_ship_names, 1):
                 try:
                     logger.info(f"Parsing ship {i}/{len(all_ship_names)}: {ship_name}")
-                    
+
                     ship_data = scraper.parse_ship_page(ship_name)
-                    
+
                     if ship_data:
                         result = self.upsert_ship(ship_data)
-                        
+
                         if result == 'created':
                             stats['added'] += 1
                         elif result == 'updated':
@@ -787,10 +973,10 @@ class ShipDatabase:
                             stats['unchanged'] += 1
                     else:
                         logger.warning(f"No data returned for ship: {ship_name}")
-                        
+
                 except Exception as e:
                     logger.error(f"Failed to sync ship {ship_name}: {e}", exc_info=True)
-                
+
                 # Small delay to avoid hammering the API
                 time.sleep(0.05)
             
@@ -810,6 +996,108 @@ class ShipDatabase:
             
         except Exception as e:
             logger.error(f"Full sync failed: {e}", exc_info=True)
+            self.update_sync_status(is_syncing=False)
+            raise
+
+    def incremental_sync(self, scraper, use_bulk: bool = True, limit: int = 10000):
+        """
+        Incremental bulk sync: fetch bulk ship records and apply only changes.
+
+        - Uses `scraper.get_all_ships_bulk()` when available to retrieve
+          a compact representation of all ships.
+        - Compares a deterministic data hash per-ship against the DB's
+          `data_hash` and upserts only new/changed ships.
+        - Removes ships that no longer appear in the bulk result.
+        """
+        start_time = time.time()
+
+        # Mark as syncing
+        self.update_sync_status(is_syncing=True)
+
+        stats = {'added': 0, 'updated': 0, 'deleted': 0, 'unchanged': 0}
+
+        try:
+            if not use_bulk or not hasattr(scraper, 'get_all_ships_bulk'):
+                logger.info("Bulk API unavailable; falling back to full sync")
+                return self.full_sync(scraper, use_bulk=use_bulk)
+
+            logger.info("Starting incremental bulk sync...")
+
+            # Fetch bulk records
+            bulk_ships = scraper.get_all_ships_bulk(limit=limit)
+            logger.info(f"Bulk sync fetched {len(bulk_ships)} ships")
+
+            # Load existing name->hash map
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT name, data_hash FROM ships")
+            existing_hash = {row['name']: row['data_hash'] for row in cursor.fetchall()}
+            conn.close()
+
+            seen_names = set()
+
+            for ship in bulk_ships:
+                name = ship.get('name')
+                if not name:
+                    continue
+                seen_names.add(name)
+
+                # Prepare a shallow copy for hashing that matches upsert behavior
+                temp = ship.copy()
+                if 'type' in temp and isinstance(temp['type'], list):
+                    temp['type'] = json.dumps(temp['type'])
+                if 'faction' in temp and isinstance(temp['faction'], list):
+                    temp['faction'] = json.dumps(temp['faction'])
+                if 'devices' in temp and isinstance(temp['devices'], list):
+                    temp['devices'] = json.dumps(temp['devices'])
+
+                candidate_hash = self._hash_ship_data(temp)
+
+                # If unchanged, skip upsert
+                if existing_hash.get(name) == candidate_hash:
+                    stats['unchanged'] += 1
+                    continue
+
+                # Otherwise upsert using the bulk record (will compute and store new hash)
+                try:
+                    res = self.upsert_ship(ship)
+                    if res == 'created':
+                        stats['added'] += 1
+                    elif res == 'updated':
+                        stats['updated'] += 1
+                    elif res == 'unchanged':
+                        stats['unchanged'] += 1
+                except Exception as e:
+                    logger.error(f"Failed to upsert ship {name} during incremental sync: {e}", exc_info=True)
+
+            # Detect deletions: ships present in DB but not in bulk
+            db_names = set(existing_hash.keys())
+            deleted = db_names - seen_names
+            for name in deleted:
+                try:
+                    self.delete_ship(name)
+                    stats['deleted'] += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete ship {name} during incremental sync: {e}", exc_info=True)
+
+            duration = int(time.time() - start_time)
+
+            # Update sync status (partial)
+            self.update_sync_status(
+                last_partial_sync=datetime.now().isoformat(),
+                is_syncing=False,
+                ships_added=stats['added'],
+                ships_updated=stats['updated'],
+                ships_deleted=stats['deleted'],
+                last_sync_duration_seconds=duration
+            )
+
+            logger.info(f"Incremental sync completed in {duration}s: "
+                        f"{stats['added']} added, {stats['updated']} updated, {stats['deleted']} deleted, {stats['unchanged']} unchanged")
+            return
+
+        except Exception as e:
+            logger.error(f"Incremental sync failed: {e}", exc_info=True)
             self.update_sync_status(is_syncing=False)
             raise
     
