@@ -35,15 +35,7 @@ class CargoShipScraper:
         logger.info("CargoShipScraper initialized")
 
     def get_all_ships(self, limit: int = 1000) -> List[Dict]:
-        """
-        Get all ships from Cargo database
-
-        Args:
-            limit: Maximum ships to fetch
-
-        Returns:
-            List of ship data dictionaries
-        """
+        """Get all ships from Cargo database."""
         ships = []
         offset = 0
         batch_size = 500  # Cargo max limit
@@ -81,30 +73,21 @@ class CargoShipScraper:
 
                     offset += batch_size
                 else:
-                    logger.warning("No cargoquery in response")
+                    # Cargo may return {"error": ...} without cargoquery
+                    logger.warning(f"No cargoquery in response: {data.get('error')}")
                     break
 
             except Exception as e:
                 logger.error(f"Error fetching ships: {e}", exc_info=True)
                 break
 
-            # Rate limiting
             time.sleep(0.1)
 
         logger.info(f"Fetched total of {len(ships)} ships")
         return ships
 
     def get_faction_ships(self, faction: str, limit: int = 500) -> List[Dict]:
-        """
-        Get all ships for a specific faction
-
-        Args:
-            faction: Faction key (federation, klingon, etc.)
-            limit: Maximum ships to fetch
-
-        Returns:
-            List of ship data dictionaries
-        """
+        """Get all ships for a specific faction."""
         where_clause = self.FACTION_FILTERS.get(faction.lower())
 
         if not where_clause:
@@ -149,6 +132,7 @@ class CargoShipScraper:
 
                     offset += batch_size
                 else:
+                    logger.warning(f"No cargoquery in response: {data.get('error')}")
                     break
 
             except Exception as e:
@@ -161,18 +145,7 @@ class CargoShipScraper:
         return ships
 
     def get_category_members(self, category: str = None, limit: int = 1000) -> List[str]:
-        """
-        Get all ship names from Cargo database
-
-        This is used for sync operations to get a list of all ships.
-
-        Args:
-            category: Ignored (for compatibility)
-            limit: Maximum ship names to fetch
-
-        Returns:
-            List of ship names
-        """
+        """Get all ship names from Cargo database (compat shim)."""
         ship_names = []
         offset = 0
         batch_size = 500
@@ -181,7 +154,8 @@ class CargoShipScraper:
             params = {
                 "action": "cargoquery",
                 "tables": "Ships",
-                "fields": "_pageName",
+                # Important: Cargo disallows aliases starting with '_' (e.g. '_pageName').
+                "fields": "Ships._pageName=pageName",
                 "limit": min(batch_size, limit - len(ship_names)),
                 "offset": offset,
                 "format": "json"
@@ -208,6 +182,7 @@ class CargoShipScraper:
 
                     offset += batch_size
                 else:
+                    logger.warning(f"No cargoquery in response: {data.get('error')}")
                     break
 
             except Exception as e:
@@ -218,20 +193,12 @@ class CargoShipScraper:
         return ship_names
 
     def parse_ship_page(self, page_title: str) -> Optional[Dict]:
-        """
-        Parse a single ship by querying Cargo for its data
-
-        Args:
-            page_title: Ship name
-
-        Returns:
-            Ship data dictionary or None if not found
-        """
+        """Parse a single ship by querying Cargo for its data."""
         params = {
             "action": "cargoquery",
             "tables": "Ships",
             "fields": self._get_field_list(),
-            "where": f"_pageName='{page_title}'",
+            "where": f"Ships._pageName='{page_title}'",
             "limit": 1,
             "format": "json"
         }
@@ -242,8 +209,7 @@ class CargoShipScraper:
             data = response.json()
 
             if "cargoquery" in data and data["cargoquery"]:
-                ship = self._parse_cargo_result(data["cargoquery"][0]["title"])
-                return ship
+                return self._parse_cargo_result(data["cargoquery"][0]["title"])
 
             logger.warning(f"No data found for {page_title}")
             return None
@@ -253,50 +219,46 @@ class CargoShipScraper:
             return None
 
     def _get_field_list(self) -> str:
-        """Get list of fields to query from Cargo"""
+        """Get list of fields to query from Cargo.
+
+        Note: Cargo API disallows field aliases that start with '_' (e.g. '_pageName').
+        Therefore we alias Ships._pageName to 'pageName'.
+        """
         fields = [
-            "_pageName",
-            "faction",
-            "factionlede",
-            "tier",
-            "type",
-            "rank",
-            "cost",
-            "displayprefix",
-            "displayclass",
-            "displaytype",
-            "hull",
-            "hullmod",
-            "shieldmod",
-            "turnrate",
-            "impulse",
-            "inertia",
-            "fore",
-            "aft",
-            "equipcannons",
-            "consolestac",
-            "consoleseng",
-            "consolessci",
-            "consolesuni",
-            "hangars",
-            "boffs",
-            "abilities",
-            "admiraltyeng",
-            "admiraltytac",
-            "admiraltysci"
+            "Ships._pageName=pageName",
+            "Ships.faction=faction",
+            "Ships.factionlede=factionlede",
+            "Ships.tier=tier",
+            "Ships.type=type",
+            "Ships.rank=rank",
+            "Ships.cost=cost",
+            "Ships.displayprefix=displayprefix",
+            "Ships.displayclass=displayclass",
+            "Ships.displaytype=displaytype",
+            "Ships.hull=hull",
+            "Ships.hullmod=hullmod",
+            "Ships.shieldmod=shieldmod",
+            "Ships.turnrate=turnrate",
+            "Ships.impulse=impulse",
+            "Ships.inertia=inertia",
+            "Ships.fore=fore",
+            "Ships.aft=aft",
+            "Ships.equipcannons=equipcannons",
+            "Ships.consolestac=consolestac",
+            "Ships.consoleseng=consoleseng",
+            "Ships.consolessci=consolessci",
+            "Ships.consolesuni=consolesuni",
+            "Ships.hangars=hangars",
+            "Ships.boffs=boffs",
+            "Ships.abilities=abilities",
+            "Ships.admiraltyeng=admiraltyeng",
+            "Ships.admiraltytac=admiraltytac",
+            "Ships.admiraltysci=admiraltysci",
         ]
         return ",".join(fields)
 
     def _parse_cargo_result(self, cargo_data: Dict) -> Optional[Dict]:
-        """
-        Parse ship data from Cargo query result
-
-        Args:
-            cargo_data: Raw Cargo result
-
-        Returns:
-            Parsed ship data dictionary
-        """
+        """Parse ship data from Cargo query result."""
         try:
             ship_data = {}
 
@@ -353,7 +315,6 @@ class CargoShipScraper:
             return None
 
     def _parse_int(self, value: Optional[str]) -> Optional[int]:
-        """Parse integer from string"""
         if not value or value in ('?', '', 'None'):
             return None
         try:
@@ -363,7 +324,6 @@ class CargoShipScraper:
             return None
 
     def _parse_float(self, value: Optional[str]) -> Optional[float]:
-        """Parse float from string"""
         if not value or value in ('?', '', 'None'):
             return None
         try:
@@ -373,10 +333,8 @@ class CargoShipScraper:
             return None
 
     def _parse_list(self, value: str) -> List[str]:
-        """Parse comma-separated list"""
         if not value or value in ('?', '', 'None'):
             return []
-        # Split by comma or semicolon
         items = re.split(r'[,;]', value)
         return [item.strip() for item in items if item.strip()]
 
@@ -390,6 +348,5 @@ class CargoShipScraper:
     }
 
     def close(self):
-        """Close HTTP client"""
         self.client.close()
         logger.info("CargoShipScraper closed")
