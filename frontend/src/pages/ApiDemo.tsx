@@ -1,14 +1,32 @@
 import { useState } from 'react';
-import { api } from '../lib/api';
+
+interface ShipWeapons {
+  fore: number;
+  aft: number;
+  can_equip_dual_cannons: boolean;
+}
+
+interface ShipStats {
+  max_hull: number | null;
+  hull_modifier: number | null;
+  shield_modifier: number | null;
+  impulse_modifier: number | null;
+  turn_rate: number | null;
+  inertia_rating: number | null;
+}
 
 interface ShipData {
-  Ship?: string;
-  Link?: string;
-  Faction?: string;
-  Tier?: string;
-  Type?: string;
-  Class?: string;
-  [key: string]: any;
+  name: string;
+  link: string;
+  tier: number | null;
+  faction: string | null;
+  type: string | null;
+  released: string | null;
+  device_slots: number | null;
+  weapons: ShipWeapons | null;
+  stats: ShipStats | null;
+  bridge_officers: string | null;
+  console_slots: string | null;
 }
 
 export function ApiDemo() {
@@ -110,22 +128,37 @@ export function ApiDemo() {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Ship Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Faction
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Tier
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Class
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Fore
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Aft
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Dual Cannons
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Max Hull
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Turn Rate
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Released
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Link
                     </th>
                   </tr>
@@ -133,25 +166,44 @@ export function ApiDemo() {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {ships.map((ship, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {index + 1}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {ship.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {ship.Ship || ship.name || 'Unknown'}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {ship.faction || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {ship.Tier || ship.tier || '-'}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
+                        {ship.tier || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {ship.Type || ship.type || '-'}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {ship.type || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {ship.Class || ship.class || '-'}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
+                        {ship.weapons?.fore ?? '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {ship.Link ? (
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
+                        {ship.weapons?.aft ?? '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                        {ship.weapons?.can_equip_dual_cannons ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>
+                        ) : (
+                          <span className="text-red-600 dark:text-red-400">✗</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
+                        {ship.stats?.max_hull?.toLocaleString() || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
+                        {ship.stats?.turn_rate || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {ship.released || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                        {ship.link ? (
                           <a
-                            href={ship.Link}
+                            href={ship.link}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 dark:text-blue-400 hover:underline"
@@ -192,7 +244,8 @@ export function ApiDemo() {
             <li>• Scrapt <strong>live</strong> von stowiki.net via MediaWiki API</li>
             <li>• <strong>Keine Speicherung</strong> - Daten nur im Browser</li>
             <li>• Transformiert automatisch mit ShipTransformer</li>
-            <li>• Zeigt Raw JSON zum Debugging</li>
+            <li>• Zeigt strukturierte Felder: Weapons, Stats, etc.</li>
+            <li>• ~1 Sekunde für 43 Ships (10x parallele Requests)</li>
           </ul>
         </div>
       </div>
