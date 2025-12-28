@@ -176,7 +176,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           id: `boff_${boffIndex + 1}_rank`,
           header: ({ column }) => (
             <div className="flex items-center justify-center">
-              <ColumnFilter column={column} table={table} title="Rank" />
+              <ColumnFilter column={column} title="Rank" />
             </div>
           ),
           accessorFn: (row) => {
@@ -198,7 +198,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           id: `boff_${boffIndex + 1}_type`,
           header: ({ column }) => (
             <div className="flex items-center justify-center">
-              <ColumnFilter column={column} table={table} title="Type" />
+              <ColumnFilter column={column} title="Type" />
             </div>
           ),
           accessorFn: (row) => {
@@ -220,7 +220,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           id: `boff_${boffIndex + 1}_spec`,
           header: ({ column }) => (
             <div className="flex items-center justify-center">
-              <ColumnFilter column={column} table={table} title="Specialization" />
+              <ColumnFilter column={column} title="Specialization" />
             </div>
           ),
           accessorFn: (row) => {
@@ -276,7 +276,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Faction</span>
-              <ColumnFilter column={column} table={table} title="Faction" />
+              <ColumnFilter column={column} title="Faction" />
             </div>
           ),
           cell: ({ row }) => {
@@ -302,7 +302,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 TIER
                 <ArrowUpDown className="h-4 w-4" />
               </button>
-              <ColumnFilter column={column} table={table} title="Tier" />
+              <ColumnFilter column={column} title="Tier" />
             </div>
           ),
           cell: ({ row }) => {
@@ -316,7 +316,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Type</span>
-              <ColumnFilter column={column} table={table} title="Type" />
+              <ColumnFilter column={column} title="Type" />
             </div>
           ),
           cell: ({ row }) => {
@@ -353,7 +353,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 HULL
                 <ArrowUpDown className="h-4 w-4" />
               </button>
-              <RangeSlider column={column} table={table} title="Hull" />
+              <RangeSlider column={column} title="Hull" />
             </div>
           ),
           cell: ({ row }) => {
@@ -368,7 +368,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Hull Mod</span>
-              <RangeSlider column={column} table={table} title="Hull Mod" />
+              <RangeSlider column={column} title="Hull Mod" />
             </div>
           ),
           cell: ({ row }) => {
@@ -383,7 +383,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Shield Mod</span>
-              <RangeSlider column={column} table={table} title="Shield Mod" />
+              <RangeSlider column={column} title="Shield Mod" />
             </div>
           ),
           cell: ({ row }) => {
@@ -400,7 +400,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>DHC</span>
-              <ColumnFilter column={column} table={table} title="DHC" />
+              <ColumnFilter column={column} title="DHC" />
             </div>
           ),
           cell: ({ row }) => {
@@ -423,7 +423,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Fore</span>
-              <ColumnFilter column={column} table={table} title="Fore" />
+              <ColumnFilter column={column} title="Fore" />
             </div>
           ),
           cell: ({ row }) => {
@@ -438,7 +438,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Aft</span>
-              <ColumnFilter column={column} table={table} title="Aft" />
+              <ColumnFilter column={column} title="Aft" />
             </div>
           ),
           cell: ({ row }) => {
@@ -455,7 +455,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Turn</span>
-              <RangeSlider column={column} table={table} title="Turn Rate" />
+              <RangeSlider column={column} title="Turn Rate" />
             </div>
           ),
           cell: ({ row }) => {
@@ -470,7 +470,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Imp</span>
-              <RangeSlider column={column} table={table} title="Impulse" />
+              <RangeSlider column={column} title="Impulse" />
             </div>
           ),
           cell: ({ row }) => {
@@ -485,7 +485,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Inrt</span>
-              <RangeSlider column={column} table={table} title="Inertia" />
+              <RangeSlider column={column} title="Inertia" />
             </div>
           ),
           cell: ({ row }) => {
@@ -502,7 +502,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>TAC</span>
-              <ColumnFilter column={column} table={table} title="TAC Consoles" />
+              <ColumnFilter column={column} title="TAC Consoles" />
             </div>
           ),
           cell: ({ row }) => {
@@ -517,7 +517,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>ENG</span>
-              <ColumnFilter column={column} table={table} title="ENG Consoles" />
+              <ColumnFilter column={column} title="ENG Consoles" />
             </div>
           ),
           cell: ({ row }) => {
@@ -532,7 +532,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>SCI</span>
-              <ColumnFilter column={column} table={table} title="SCI Consoles" />
+              <ColumnFilter column={column} title="SCI Consoles" />
             </div>
           ),
           cell: ({ row }) => {
@@ -568,7 +568,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Eng</span>
-              <RangeSlider column={column} table={table} title="Admiralty Eng" />
+              <RangeSlider column={column} title="Admiralty Eng" />
             </div>
           ),
           cell: ({ row }) => {
@@ -583,7 +583,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Tac</span>
-              <RangeSlider column={column} table={table} title="Admiralty Tac" />
+              <RangeSlider column={column} title="Admiralty Tac" />
             </div>
           ),
           cell: ({ row }) => {
@@ -598,7 +598,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Sci</span>
-              <RangeSlider column={column} table={table} title="Admiralty Sci" />
+              <RangeSlider column={column} title="Admiralty Sci" />
             </div>
           ),
           cell: ({ row }) => {
@@ -615,7 +615,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           header: ({ column }) => (
             <div className="flex items-center gap-2">
               <span>Hangar</span>
-              <ColumnFilter column={column} table={table} title="Hangar" />
+              <ColumnFilter column={column} title="Hangar" />
             </div>
           ),
           cell: ({ row }) => {
