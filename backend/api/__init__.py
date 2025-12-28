@@ -1,4 +1,8 @@
-"""Flask API application."""
-from .app import app
+"""Flask API package.
 
-__all__ = ["app"]
+Note: Do not import the Flask app here.
+Running via `python -m api.app` would otherwise import `api.app` twice
+(package import + module execution) and trigger a RuntimeWarning.
+"""
+
+__all__ = []
