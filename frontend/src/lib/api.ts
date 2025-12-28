@@ -17,7 +17,7 @@ export interface Ship {
 
   // Faction
   faction: string[];  // Array of factions
-  factionlede?: string;  // Primary faction
+  factionlede?: string;  // Primary faction display name
   facsort?: string;
 
   // Tier & Rank
