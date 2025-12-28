@@ -286,16 +286,14 @@ class ShipDatabase:
             # Apply faction filter
             if faction:
                 faction_map = {
-                    "federation": "Federation",
-                    "klingon": "Klingon",
+                    "federation": ["Federation"],
+                    "klingon": ["Klingon", "Klingon Empire"],
                     "romulan": ["Romulan Republic", "Romulan"],
-                    "dominion": "Dominion",
-                    "cross-faction": "Cross-Faction"
+                    "dominion": ["Dominion"],
+                    "cross-faction": ["Cross-Faction"]
                 }
                 
                 target_factions = faction_map.get(faction.lower(), [])
-                if isinstance(target_factions, str):
-                    target_factions = [target_factions]
                 
                 # Check if ship belongs to target faction
                 if not any(f in target_factions for f in ship['faction']):
@@ -480,14 +478,21 @@ class ShipDatabase:
             "Cross-Faction": "cross-faction"
         }
         
-        # Build faction list
-        factions = []
-        for name, count in sorted(faction_counts.items(), key=lambda x: -x[1]):
-            factions.append({
-                "name": name,
-                "key": faction_map.get(name, name.lower().replace(' ', '-')),
-                "count": count
-            })
+        # Merge counts for same faction keys
+        merged_counts = {}
+        for name, count in faction_counts.items():
+            key = faction_map.get(name, name.lower().replace(' ', '-'))
+            if key in merged_counts:
+                merged_counts[key]['count'] += count
+            else:
+                merged_counts[key] = {
+                    'name': name,
+                    'key': key,
+                    'count': count
+                }
+        
+        # Build faction list sorted by count
+        factions = sorted(merged_counts.values(), key=lambda x: -x['count'])
         
         return factions
     
