@@ -491,6 +491,11 @@ export function ShipsTable({ ships }: ShipsTableProps) {
 
   return (
     <div className="space-y-4">
+      {/* Ship Count */}
+      <div className="text-sm text-gray-600 dark:text-gray-400">
+        Showing {table.getFilteredRowModel().rows.length} of {ships.length} ships
+      </div>
+
       {/* Search */}
       <div className="flex items-center gap-4">
         <div className="relative w-full max-w-md">
