@@ -223,14 +223,14 @@ class ShipDatabase:
     
     def get_ships(self, faction: Optional[str] = None, 
                   tier: Optional[int] = None, 
-                  limit: int = 1000) -> List[Dict]:
+                  limit: Optional[int] = None) -> List[Dict]:
         """
         Get ships from database (instant response)
         
         Args:
             faction: Filter by faction key (e.g., 'federation', 'klingon')
             tier: Filter by tier
-            limit: Maximum results (default 1000)
+            limit: Maximum results (None = all ships)
         
         Returns:
             List of ship dictionaries
@@ -267,8 +267,12 @@ class ShipDatabase:
             query += " AND tier = ?"
             params.append(tier)
         
-        query += " ORDER BY name LIMIT ?"
-        params.append(limit)
+        query += " ORDER BY name"
+        
+        # Add limit only if specified
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
         
         cursor = conn.execute(query, params)
         ships = [dict(row) for row in cursor.fetchall()]
