@@ -33,6 +33,26 @@ class Faction(str, Enum):
         return urls[faction]
     
     @classmethod
+    def get_category_name(cls, faction: "Faction") -> str:
+        """Get MediaWiki category name for a faction.
+        
+        Args:
+            faction: Faction enum value
+            
+        Returns:
+            Category name (without 'Category:' prefix) for use with MediaWiki API
+        """
+        categories = {
+            cls.FEDERATION: "Federation_playable_starship",
+            cls.KLINGON: "Klingon_playable_starship",
+            cls.ROMULAN: "Romulan_playable_starship",
+            cls.DOMINION: "Dominion_playable_starship",
+            cls.CROSS_FACTION: "Cross-Faction_playable_starship",
+        }
+        
+        return categories[faction]
+    
+    @classmethod
     def all_urls(cls) -> list[str]:
         """Get all faction wiki URLs.
         
