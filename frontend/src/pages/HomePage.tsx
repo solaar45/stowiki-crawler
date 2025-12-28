@@ -27,10 +27,6 @@ export function HomePage() {
     queryFn: () => api.getFactions(),
   });
 
-  const handleDownload = () => {
-    api.downloadShips(selectedFaction);
-  };
-
   // Calculate total count from factions
   const totalShips = factions?.reduce((sum, f) => sum + f.count, 0) || 0;
   
@@ -120,16 +116,6 @@ export function HomePage() {
               Clear Filters
             </button>
           )}
-
-          {/* Download Button */}
-          <button
-            onClick={handleDownload}
-            disabled={!ships || ships.length === 0}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2"
-          >
-            <span>📥</span>
-            Download JSON
-          </button>
         </div>
       </div>
 
