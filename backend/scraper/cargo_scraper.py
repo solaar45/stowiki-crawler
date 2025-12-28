@@ -7,6 +7,7 @@ Optimized for database sync operations.
 import httpx
 import logging
 import re
+import html
 from typing import List, Dict, Optional
 import time
 
@@ -175,7 +176,8 @@ class CargoShipScraper:
                     for item in results:
                         name = item["title"].get("pageName")
                         if name:
-                            ship_names.append(name)
+                            # CRITICAL FIX: HTML-decode ship names (&#039; -> ')
+                            ship_names.append(html.unescape(name))
 
                     if len(results) < batch_size:
                         break
@@ -248,9 +250,11 @@ class CargoShipScraper:
             return None
     
     def _generate_apostrophe_variants(self, text: str) -> List[str]:
-        """Generate all possible apostrophe variants of a string.
+        """Generate all possible apostrophe/hyphen variants of a string.
         
-        Tries: ' (straight), ' (curly), &#039; (HTML entity), and removing apostrophe.
+        Handles:
+        - Apostrophes: ' (straight), ' (curly), &#039; (HTML entity)
+        - Hyphens: Jem-Hadar -> Jem'Hadar, JemHadar
         """
         variants = set()
         
@@ -276,6 +280,13 @@ class CargoShipScraper:
         for apo in ["'", "'", "&#039;"]:
             if apo in text:
                 variants.add(text.replace(apo, ""))
+        
+        # Handle hyphens: Jem-Hadar -> Jem'Hadar variants
+        if "-" in text:
+            for apo in apostrophes:
+                variants.add(text.replace("-", apo))
+            # Also without hyphen
+            variants.add(text.replace("-", ""))
         
         return list(variants)
 
