@@ -338,14 +338,30 @@ class CargoShipScraper:
         return ",".join(fields)
 
     def _parse_cargo_result(self, cargo_data: Dict) -> Optional[Dict]:
-        """Parse ship data from Cargo query result."""
+        """Parse ship data from Cargo query result.
+        
+        IMPORTANT: We prioritize 'factionlede' over 'faction' because:
+        - factionlede contains the primary/display faction (e.g., "Cross-Faction")
+        - faction may contain comma-separated multiple factions
+        """
         try:
             ship_data = {}
 
             # Basic info - DECODE HTML ENTITIES!
             ship_data['name'] = html.unescape(cargo_data.get('pageName', ''))
-            ship_data['faction'] = self._parse_list(cargo_data.get('faction', ''))
-            ship_data['factionlede'] = cargo_data.get('factionlede')
+            
+            # FIX: Use factionlede (primary faction) instead of faction (raw list)
+            raw_factionlede = html.unescape(cargo_data.get('factionlede', '')).strip()
+            raw_faction = html.unescape(cargo_data.get('faction', '')).strip()
+            
+            # Prefer factionlede (primary faction display), fallback to faction if empty
+            if raw_factionlede:
+                ship_data['faction'] = raw_factionlede
+            elif raw_faction:
+                ship_data['faction'] = raw_faction
+            else:
+                ship_data['faction'] = 'Unknown'
+            
             ship_data['tier'] = self._parse_int(cargo_data.get('tier'))
             ship_data['type'] = self._parse_list(cargo_data.get('type', ''))
             ship_data['rank'] = cargo_data.get('rank')
