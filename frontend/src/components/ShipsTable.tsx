@@ -12,7 +12,7 @@ import {
   type FilterFn,
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, ChevronLeft, ChevronRight, Check, X, ExternalLink } from 'lucide-react';
+import { ArrowUpDown, Check, X, ExternalLink } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Ship } from '../lib/api';
 import { ColumnFilter } from './ColumnFilter';
@@ -235,7 +235,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 {value ? (
                   <span className="text-xs">{value}</span>
                 ) : (
-                  <X className="h-4 w-4 text-gray-400" />
+                  <span className="text-gray-400">-</span>
                 )}
               </div>
             );
@@ -409,7 +409,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 {canEquip ? (
                   <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
                 ) : (
-                  <X className="h-5 w-5 text-red-600 dark:text-red-400" />
+                  <span className="text-gray-400">-</span>
                 )}
               </div>
             );
@@ -627,7 +627,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                     ✓ ({hangars})
                   </span>
                 ) : (
-                  <X className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-400">-</span>
                 )}
               </div>
             );
