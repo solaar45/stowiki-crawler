@@ -149,7 +149,9 @@ export function RangeSlider<TData>({
       >
         <Filter className="h-3.5 w-3.5" />
         {hasActiveFilter && (
-          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-500" />
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-xs flex items-center justify-center">
+            1
+          </span>
         )}
       </button>
 
