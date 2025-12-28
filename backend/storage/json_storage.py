@@ -48,8 +48,8 @@ class JSONStorage:
             ships: List of Ship objects
         """
         try:
-            # Save ships data
-            ships_data = [ship.dict() for ship in ships]
+            # Save ships data - use model_dump with mode='json' for proper serialization
+            ships_data = [ship.model_dump(mode='json') for ship in ships]
             async with aiofiles.open(self.filepath, 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(ships_data, indent=2, ensure_ascii=False))
             
