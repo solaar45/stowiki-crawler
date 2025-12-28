@@ -1,13 +1,11 @@
-"""Database storage backend using SQLAlchemy."""
+"""Database storage backend with metadata tracking."""
 from typing import List, Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, Text
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, select, func
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.future import select
-from datetime import date
 
 from models.ship import Ship
-from storage.base_storage import BaseStorage
 from logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -16,237 +14,257 @@ Base = declarative_base()
 
 
 class ShipModel(Base):
-    """SQLAlchemy model for ships table."""
+    """SQLAlchemy model for ships."""
     __tablename__ = "ships"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(500), nullable=False)
-    link = Column(String(500), nullable=False, unique=True)
-    tier = Column(Integer)
-    faction = Column(String(100))
-    type = Column(String(200))
-    released = Column(Date)
-    device_slots = Column(Integer)
-    
-    # Weapons
-    fore_weapons = Column(Integer)
-    aft_weapons = Column(Integer)
-    can_equip_dual_cannons = Column(Boolean, default=False)
-    
-    # Stats
-    max_hull = Column(Integer)
-    hull_modifier = Column(Float)
-    shield_modifier = Column(Float)
-    impulse_modifier = Column(Float)
-    turn_rate = Column(Float)
-    inertia_rating = Column(Integer)
-    
-    # Additional fields
-    bridge_officers = Column(Text)
-    console_slots = Column(Text)
-    
 
-class DatabaseStorage(BaseStorage):
-    """Database storage implementation."""
-    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False, index=True)
+    faction = Column(String(50), index=True)
+    tier = Column(String(50))
+    type = Column(String(100))
+    hull = Column(String(50))
+    shields = Column(String(50))
+    crew = Column(String(50))
+    weapons_fore = Column(String(50))
+    weapons_aft = Column(String(50))
+    device_slots = Column(String(50))
+    consoles_tactical = Column(String(50))
+    consoles_engineering = Column(String(50))
+    consoles_science = Column(String(50))
+    turn_rate = Column(String(50))
+    impulse_modifier = Column(String(50))
+    inertia = Column(String(50))
+    warp_core = Column(String(50))
+    bonus_power = Column(String(200))
+    bridge_officers = Column(Text)
+    link = Column(String(500))
+    raw_data = Column(Text)  # Store additional data as JSON
+
+
+class MetadataModel(Base):
+    """SQLAlchemy model for metadata."""
+    __tablename__ = "metadata"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DatabaseStorage:
+    """Database storage for ships with metadata tracking."""
+
     def __init__(self, database_url: str):
         """Initialize database storage.
-        
+
         Args:
-            database_url: SQLAlchemy database URL
+            database_url: Database connection URL
         """
         # Convert sync URL to async if needed
-        if database_url.startswith("sqlite:"):
-            database_url = database_url.replace("sqlite:", "sqlite+aiosqlite:")
-        elif database_url.startswith("postgresql:"):
-            database_url = database_url.replace("postgresql:", "postgresql+asyncpg:")
-        elif database_url.startswith("mysql:"):
-            database_url = database_url.replace("mysql:", "mysql+aiomysql:")
-        
+        if database_url.startswith("sqlite://"):
+            database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://")
+        elif database_url.startswith("postgresql://"):
+            database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+        elif database_url.startswith("mysql://"):
+            database_url = database_url.replace("mysql://", "mysql+aiomysql://")
+
         self.engine = create_async_engine(database_url, echo=False)
-        self.async_session = async_sessionmaker(
-            self.engine, class_=AsyncSession, expire_on_commit=False
-        )
-    
+        self.async_session = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
+        logger.info(f"Database storage initialized: {database_url.split('@')[-1]}")
+
     async def init_db(self):
         """Initialize database tables."""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables initialized")
-    
-    async def save_ships(self, ships: List[Ship]) -> bool:
-        """Save ships to database.
-        
+
+    async def save_ships(self, ships: List[Ship]) -> None:
+        """Save ships to database and update metadata.
+
         Args:
-            ships: List of Ship instances
-            
-        Returns:
-            True if successful
+            ships: List of Ship objects
         """
         try:
             async with self.async_session() as session:
+                # Clear existing ships
+                await session.execute(ShipModel.__table__.delete())
+
+                # Insert new ships
                 for ship in ships:
-                    # Check if ship already exists
-                    stmt = select(ShipModel).where(ShipModel.link == str(ship.link))
-                    result = await session.execute(stmt)
-                    existing = result.scalar_one_or_none()
-                    
-                    if existing:
-                        # Update existing ship
-                        self._update_ship_model(existing, ship)
-                    else:
-                        # Create new ship
-                        ship_model = self._ship_to_model(ship)
-                        session.add(ship_model)
+                    ship_model = ShipModel(
+                        name=ship.ship,
+                        faction=ship.faction,
+                        tier=ship.tier,
+                        type=ship.type,
+                        hull=ship.hull,
+                        shields=ship.shields,
+                        crew=ship.crew,
+                        weapons_fore=ship.weapons_fore,
+                        weapons_aft=ship.weapons_aft,
+                        device_slots=ship.device_slots,
+                        consoles_tactical=ship.consoles_tactical,
+                        consoles_engineering=ship.consoles_engineering,
+                        consoles_science=ship.consoles_science,
+                        turn_rate=ship.turn_rate,
+                        impulse_modifier=ship.impulse_modifier,
+                        inertia=ship.inertia,
+                        warp_core=ship.warp_core,
+                        bonus_power=ship.bonus_power,
+                        bridge_officers=ship.bridge_officers,
+                        link=ship.link,
+                        raw_data=ship.json()
+                    )
+                    session.add(ship_model)
                 
+                # Update metadata
+                import json
+                metadata_value = json.dumps({
+                    "last_scraped": datetime.utcnow().isoformat(),
+                    "ship_count": len(ships),
+                    "factions_scraped": list(set(ship.faction for ship in ships if ship.faction))
+                })
+                
+                # Upsert metadata
+                result = await session.execute(
+                    select(MetadataModel).where(MetadataModel.key == "scrape_info")
+                )
+                metadata_obj = result.scalar_one_or_none()
+                
+                if metadata_obj:
+                    metadata_obj.value = metadata_value
+                    metadata_obj.updated_at = datetime.utcnow()
+                else:
+                    metadata_obj = MetadataModel(
+                        key="scrape_info",
+                        value=metadata_value,
+                        updated_at=datetime.utcnow()
+                    )
+                    session.add(metadata_obj)
+
                 await session.commit()
-            
-            logger.info(f"Saved {len(ships)} ships to database")
-            return True
-            
+                logger.info(f"Saved {len(ships)} ships to database with metadata")
+
         except Exception as e:
-            logger.error(f"Failed to save ships to database: {e}")
-            return False
-    
+            logger.error(f"Failed to save ships: {e}")
+            raise
+
     async def get_ships(self, faction: Optional[str] = None) -> List[Ship]:
-        """Retrieve ships from database.
-        
+        """Load ships from database.
+
         Args:
             faction: Optional faction filter
-            
+
         Returns:
-            List of Ship instances
+            List of Ship objects
         """
         try:
             async with self.async_session() as session:
                 stmt = select(ShipModel)
-                
                 if faction:
-                    stmt = stmt.where(ShipModel.faction == faction)
-                
+                    stmt = stmt.where(func.lower(ShipModel.faction) == faction.lower())
+
                 result = await session.execute(stmt)
                 ship_models = result.scalars().all()
-            
-            ships = [self._model_to_ship(model) for model in ship_models]
-            logger.info(f"Loaded {len(ships)} ships from database")
-            return ships
-            
+
+                ships = [
+                    Ship(
+                        ship=model.name,
+                        faction=model.faction,
+                        tier=model.tier,
+                        type=model.type,
+                        hull=model.hull,
+                        shields=model.shields,
+                        crew=model.crew,
+                        weapons_fore=model.weapons_fore,
+                        weapons_aft=model.weapons_aft,
+                        device_slots=model.device_slots,
+                        consoles_tactical=model.consoles_tactical,
+                        consoles_engineering=model.consoles_engineering,
+                        consoles_science=model.consoles_science,
+                        turn_rate=model.turn_rate,
+                        impulse_modifier=model.impulse_modifier,
+                        inertia=model.inertia,
+                        warp_core=model.warp_core,
+                        bonus_power=model.bonus_power,
+                        bridge_officers=model.bridge_officers,
+                        link=model.link,
+                    )
+                    for model in ship_models
+                ]
+
+                logger.debug(f"Loaded {len(ships)} ships from database")
+                return ships
+
         except Exception as e:
-            logger.error(f"Failed to load ships from database: {e}")
+            logger.error(f"Failed to load ships: {e}")
             return []
-    
-    async def delete_all_ships(self) -> bool:
-        """Delete all ships from database.
-        
-        Returns:
-            True if successful
-        """
-        try:
-            async with self.async_session() as session:
-                await session.execute(ShipModel.__table__.delete())
-                await session.commit()
-            
-            logger.info("Deleted all ships from database")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to delete ships from database: {e}")
-            return False
-    
+
     async def get_ship_count(self) -> int:
-        """Get total ship count from database.
-        
+        """Get total number of ships in database.
+
         Returns:
-            Total ship count
+            Number of ships
         """
         try:
             async with self.async_session() as session:
-                stmt = select(ShipModel)
-                result = await session.execute(stmt)
-                return len(result.scalars().all())
+                result = await session.execute(select(func.count(ShipModel.id)))
+                count = result.scalar()
+                return count or 0
         except Exception as e:
             logger.error(f"Failed to get ship count: {e}")
             return 0
     
-    def _ship_to_model(self, ship: Ship) -> ShipModel:
-        """Convert Ship pydantic model to SQLAlchemy model."""
-        return ShipModel(
-            name=ship.name,
-            link=str(ship.link),
-            tier=ship.tier,
-            faction=ship.faction,
-            type=ship.type,
-            released=ship.released,
-            device_slots=ship.device_slots,
-            fore_weapons=ship.weapons.fore if ship.weapons else None,
-            aft_weapons=ship.weapons.aft if ship.weapons else None,
-            can_equip_dual_cannons=ship.weapons.can_equip_dual_cannons if ship.weapons else False,
-            max_hull=ship.stats.max_hull if ship.stats else None,
-            hull_modifier=ship.stats.hull_modifier if ship.stats else None,
-            shield_modifier=ship.stats.shield_modifier if ship.stats else None,
-            impulse_modifier=ship.stats.impulse_modifier if ship.stats else None,
-            turn_rate=ship.stats.turn_rate if ship.stats else None,
-            inertia_rating=ship.stats.inertia_rating if ship.stats else None,
-            bridge_officers=ship.bridge_officers,
-            console_slots=ship.console_slots,
-        )
+    async def get_metadata(self) -> Optional[dict]:
+        """Get scraping metadata.
+        
+        Returns:
+            Metadata dict or None if not found
+        """
+        try:
+            import json
+            async with self.async_session() as session:
+                result = await session.execute(
+                    select(MetadataModel).where(MetadataModel.key == "scrape_info")
+                )
+                metadata_obj = result.scalar_one_or_none()
+                
+                if metadata_obj:
+                    return json.loads(metadata_obj.value)
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to load metadata: {e}")
+            return None
     
-    def _update_ship_model(self, model: ShipModel, ship: Ship):
-        """Update SQLAlchemy model with Ship data."""
-        model.name = ship.name
-        model.tier = ship.tier
-        model.faction = ship.faction
-        model.type = ship.type
-        model.released = ship.released
-        model.device_slots = ship.device_slots
+    async def needs_refresh(self, max_age_hours: int = 24) -> bool:
+        """Check if data needs refresh based on age.
         
-        if ship.weapons:
-            model.fore_weapons = ship.weapons.fore
-            model.aft_weapons = ship.weapons.aft
-            model.can_equip_dual_cannons = ship.weapons.can_equip_dual_cannons
+        Args:
+            max_age_hours: Maximum age in hours before refresh needed
+            
+        Returns:
+            True if refresh needed, False otherwise
+        """
+        metadata = await self.get_metadata()
         
-        if ship.stats:
-            model.max_hull = ship.stats.max_hull
-            model.hull_modifier = ship.stats.hull_modifier
-            model.shield_modifier = ship.stats.shield_modifier
-            model.impulse_modifier = ship.stats.impulse_modifier
-            model.turn_rate = ship.stats.turn_rate
-            model.inertia_rating = ship.stats.inertia_rating
+        if not metadata:
+            logger.info("No metadata found, refresh needed")
+            return True
         
-        model.bridge_officers = ship.bridge_officers
-        model.console_slots = ship.console_slots
-    
-    def _model_to_ship(self, model: ShipModel) -> Ship:
-        """Convert SQLAlchemy model to Ship pydantic model."""
-        from models.ship import ShipWeapons, ShipStats
-        
-        weapons = None
-        if model.fore_weapons is not None or model.aft_weapons is not None:
-            weapons = ShipWeapons(
-                fore=model.fore_weapons or 0,
-                aft=model.aft_weapons or 0,
-                can_equip_dual_cannons=model.can_equip_dual_cannons
-            )
-        
-        stats = ShipStats(
-            max_hull=model.max_hull,
-            hull_modifier=model.hull_modifier,
-            shield_modifier=model.shield_modifier,
-            impulse_modifier=model.impulse_modifier,
-            turn_rate=model.turn_rate,
-            inertia_rating=model.inertia_rating
-        )
-        
-        return Ship(
-            name=model.name,
-            link=model.link,
-            tier=model.tier,
-            faction=model.faction,
-            type=model.type,
-            released=model.released,
-            device_slots=model.device_slots,
-            weapons=weapons,
-            stats=stats,
-            bridge_officers=model.bridge_officers,
-            console_slots=model.console_slots
-        )
+        try:
+            last_scraped = datetime.fromisoformat(metadata["last_scraped"])
+            age = datetime.utcnow() - last_scraped
+            age_hours = age.total_seconds() / 3600
+            
+            needs_refresh = age_hours > max_age_hours
+            
+            if needs_refresh:
+                logger.info(f"Data is {age_hours:.1f}h old (max {max_age_hours}h), refresh needed")
+            else:
+                logger.debug(f"Data is {age_hours:.1f}h old, still fresh")
+            
+            return needs_refresh
+            
+        except Exception as e:
+            logger.error(f"Failed to check refresh status: {e}")
+            return True  # Refresh on error
