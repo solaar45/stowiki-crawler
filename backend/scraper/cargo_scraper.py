@@ -225,12 +225,20 @@ class CargoShipScraper:
         return None
     
     def _query_ship_by_name(self, page_title: str) -> Optional[Dict]:
-        """Query Cargo for a single ship by exact name."""
+        """Query Cargo for a single ship by exact name.
+        
+        CRITICAL: Cargo WHERE clauses need properly escaped strings:
+        - Single quotes in SQL strings must be escaped as ''
+        - E.g., "Jem'Hadar" becomes "Jem''Hadar" in WHERE clause
+        """
+        # Escape single quotes for SQL (Cargo uses SQL WHERE syntax)
+        escaped_title = page_title.replace("'", "''")
+        
         params = {
             "action": "cargoquery",
             "tables": "Ships",
             "fields": self._get_field_list(),
-            "where": f"Ships._pageName='{page_title}'",
+            "where": f"Ships._pageName='{escaped_title}'",
             "limit": 1,
             "format": "json"
         }
@@ -334,8 +342,8 @@ class CargoShipScraper:
         try:
             ship_data = {}
 
-            # Basic info
-            ship_data['name'] = cargo_data.get('pageName', '')
+            # Basic info - DECODE HTML ENTITIES!
+            ship_data['name'] = html.unescape(cargo_data.get('pageName', ''))
             ship_data['faction'] = self._parse_list(cargo_data.get('faction', ''))
             ship_data['factionlede'] = cargo_data.get('factionlede')
             ship_data['tier'] = self._parse_int(cargo_data.get('tier'))
