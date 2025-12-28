@@ -53,7 +53,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
-            Ship Name
+            SHIP NAME
             <ArrowUpDown className="h-4 w-4" />
           </button>
         ),
@@ -90,7 +90,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
-            Tier
+            TIER
             <ArrowUpDown className="h-4 w-4" />
           </button>
         ),
@@ -126,7 +126,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
-            Hull
+            HULL
             <ArrowUpDown className="h-4 w-4" />
           </button>
         ),
@@ -360,29 +360,29 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 {/* Sticky first column placeholder to keep alignment with Ship Name */}
                 <th
                   colSpan={1}
-                  className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 dark:bg-gray-900"
+                  className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700"
                 />
 
                 {/* Ungrouped info columns: Faction, Tier, Type, Cost */}
                 <th colSpan={4} className="px-4 py-2" />
 
-                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-950/30">
                   Defense
                 </th>
-                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700 bg-purple-50 dark:bg-purple-950/30">
                   Weapons
                 </th>
-                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700 bg-green-50 dark:bg-green-950/30">
                   Mobility
                 </th>
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700 bg-orange-50 dark:bg-orange-950/30">
+                  Consoles
+                </th>
 
-                {/* Consoles group not requested - keep empty */}
-                <th colSpan={3} className="px-4 py-2" />
-
-                {/* Bridge Officers + Abilities not requested - keep empty */}
+                {/* Bridge Officers + Abilities not grouped */}
                 <th colSpan={2} className="px-4 py-2" />
 
-                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-950/30">
                   Admiralty
                 </th>
 
@@ -393,19 +393,53 @@ export function ShipsTable({ ships }: ShipsTableProps) {
               {/* Column header row */}
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header, index) => (
-                    <th
-                      key={header.id}
-                      className={cn(
-                        'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap',
-                        index === 0 && 'sticky left-0 z-10 bg-gray-50 dark:bg-gray-900'
-                      )}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
+                  {headerGroup.headers.map((header, index) => {
+                    // Determine if this column is part of a group for border styling
+                    const isFirstOfDefense = index === 5; // hull
+                    const isLastOfDefense = index === 7; // shieldmod
+                    const isFirstOfWeapons = index === 8; // can_use_cannons
+                    const isLastOfWeapons = index === 10; // aft
+                    const isFirstOfMobility = index === 11; // turnrate
+                    const isLastOfMobility = index === 13; // inertia
+                    const isFirstOfConsoles = index === 14; // consolestac
+                    const isLastOfConsoles = index === 16; // consolessci
+                    const isFirstOfAdmiralty = index === 19; // admiraltyeng
+                    const isLastOfAdmiralty = index === 21; // admiraltysci
+
+                    return (
+                      <th
+                        key={header.id}
+                        className={cn(
+                          'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap',
+                          index === 0 && 'sticky left-0 z-10 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700',
+                          // Defense group
+                          isFirstOfDefense && 'border-l-2 border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-950/30',
+                          (index > 5 && index < 8) && 'bg-blue-50 dark:bg-blue-950/30',
+                          isLastOfDefense && 'border-r-2 border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-950/30',
+                          // Weapons group
+                          isFirstOfWeapons && 'border-l-2 border-gray-300 dark:border-gray-700 bg-purple-50 dark:bg-purple-950/30',
+                          (index > 8 && index < 11) && 'bg-purple-50 dark:bg-purple-950/30',
+                          isLastOfWeapons && 'border-r-2 border-gray-300 dark:border-gray-700 bg-purple-50 dark:bg-purple-950/30',
+                          // Mobility group
+                          isFirstOfMobility && 'border-l-2 border-gray-300 dark:border-gray-700 bg-green-50 dark:bg-green-950/30',
+                          (index > 11 && index < 14) && 'bg-green-50 dark:bg-green-950/30',
+                          isLastOfMobility && 'border-r-2 border-gray-300 dark:border-gray-700 bg-green-50 dark:bg-green-950/30',
+                          // Consoles group
+                          isFirstOfConsoles && 'border-l-2 border-gray-300 dark:border-gray-700 bg-orange-50 dark:bg-orange-950/30',
+                          (index > 14 && index < 17) && 'bg-orange-50 dark:bg-orange-950/30',
+                          isLastOfConsoles && 'border-r-2 border-gray-300 dark:border-gray-700 bg-orange-50 dark:bg-orange-950/30',
+                          // Admiralty group
+                          isFirstOfAdmiralty && 'border-l-2 border-gray-300 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-950/30',
+                          (index > 19 && index < 22) && 'bg-indigo-50 dark:bg-indigo-950/30',
+                          isLastOfAdmiralty && 'border-r-2 border-gray-300 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-950/30',
+                        )}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    );
+                  })}
                 </tr>
               ))}
             </thead>
@@ -415,17 +449,46 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   key={row.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                 >
-                  {row.getVisibleCells().map((cell, index) => (
-                    <td
-                      key={cell.id}
-                      className={cn(
-                        'px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
-                        index === 0 && 'sticky left-0 z-10 bg-white dark:bg-gray-950'
-                      )}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map((cell, index) => {
+                    // Apply same grouping borders to body cells
+                    const isFirstOfDefense = index === 5;
+                    const isLastOfDefense = index === 7;
+                    const isFirstOfWeapons = index === 8;
+                    const isLastOfWeapons = index === 10;
+                    const isFirstOfMobility = index === 11;
+                    const isLastOfMobility = index === 13;
+                    const isFirstOfConsoles = index === 14;
+                    const isLastOfConsoles = index === 16;
+                    const isFirstOfAdmiralty = index === 19;
+                    const isLastOfAdmiralty = index === 21;
+
+                    return (
+                      <td
+                        key={cell.id}
+                        className={cn(
+                          'px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
+                          index === 0 && 'sticky left-0 z-10 bg-white dark:bg-gray-950 border-r-2 border-gray-300 dark:border-gray-700',
+                          // Defense group
+                          isFirstOfDefense && 'border-l-2 border-gray-300 dark:border-gray-700',
+                          isLastOfDefense && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          // Weapons group
+                          isFirstOfWeapons && 'border-l-2 border-gray-300 dark:border-gray-700',
+                          isLastOfWeapons && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          // Mobility group
+                          isFirstOfMobility && 'border-l-2 border-gray-300 dark:border-gray-700',
+                          isLastOfMobility && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          // Consoles group
+                          isFirstOfConsoles && 'border-l-2 border-gray-300 dark:border-gray-700',
+                          isLastOfConsoles && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          // Admiralty group
+                          isFirstOfAdmiralty && 'border-l-2 border-gray-300 dark:border-gray-700',
+                          isLastOfAdmiralty && 'border-r-2 border-gray-300 dark:border-gray-700',
+                        )}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
