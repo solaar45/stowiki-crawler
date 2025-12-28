@@ -18,6 +18,13 @@ interface ShipsTableProps {
   ships: Ship[];
 }
 
+// Decode HTML entities (e.g., &amp; -> &)
+function decodeHtmlEntities(text: string): string {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
 export function ShipsTable({ ships }: ShipsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -91,7 +98,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         header: 'Cost',
         cell: ({ row }) => {
           const cost = row.getValue('cost') as string | undefined;
-          return cost || <span className="text-gray-400">-</span>;
+          if (!cost) return <span className="text-gray-400">-</span>;
+          return decodeHtmlEntities(cost);
         },
       },
       {
@@ -234,7 +242,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'admiraltyeng',
-        header: 'ADM ENG',
+        header: 'Admiralty ENG',
         cell: ({ row }) => {
           const eng = row.getValue('admiraltyeng') as number | undefined;
           return eng || <span className="text-gray-400">-</span>;
@@ -242,7 +250,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'admiraltytac',
-        header: 'ADM TAC',
+        header: 'Admiralty TAC',
         cell: ({ row }) => {
           const tac = row.getValue('admiraltytac') as number | undefined;
           return tac || <span className="text-gray-400">-</span>;
@@ -250,7 +258,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'admiraltysci',
-        header: 'ADM SCI',
+        header: 'Admiralty SCI',
         cell: ({ row }) => {
           const sci = row.getValue('admiraltysci') as number | undefined;
           return sci || <span className="text-gray-400">-</span>;
@@ -322,10 +330,13 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             <thead className="bg-gray-50 dark:bg-gray-900">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
+                  {headerGroup.headers.map((header, index) => (
                     <th
                       key={header.id}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
+                      className={cn(
+                        "px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap",
+                        index === 0 && "sticky left-0 z-10 bg-gray-50 dark:bg-gray-900"
+                      )}
                     >
                       {header.isPlaceholder
                         ? null
@@ -344,10 +355,13 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   key={row.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                 >
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getVisibleCells().map((cell, index) => (
                     <td
                       key={cell.id}
-                      className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap"
+                      className={cn(
+                        "px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap",
+                        index === 0 && "sticky left-0 z-10 bg-white dark:bg-gray-950"
+                      )}
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
