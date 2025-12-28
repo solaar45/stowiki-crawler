@@ -24,46 +24,45 @@ export function RangeSlider<TData>({
   const [minValue, maxValue, hasData] = useMemo(() => {
     const currentColumnId = column.id;
     const allRows = table.getCoreRowModel().rows;
-    
+
     // Get all filters except the current column
-    const otherFilters = table.getState().columnFilters.filter(
-      (f) => f.id !== currentColumnId
-    );
-    
+    const otherFilters = table.getState().columnFilters.filter((f) => f.id !== currentColumnId);
+
     // Apply all OTHER filters (not this column's filter)
     let filteredRows = allRows;
-    
-    // Apply column filters
+
+    // Robustly resolve filter functions like ColumnFilter does
     otherFilters.forEach((filter) => {
       const filterColumn = table.getColumn(filter.id);
-      if (filterColumn) {
-        const filterFn = filterColumn.columnDef.filterFn;
-        if (filterFn && typeof filterFn === 'function') {
-          filteredRows = filteredRows.filter((row) =>
-            filterFn(row, filter.id, filter.value, (id) => table.getColumn(id))
-          );
+      if (!filterColumn) return;
+
+      const resolvedFn: any = (filterColumn as any).getFilterFn ? (filterColumn as any).getFilterFn() : undefined;
+      let filterFn = resolvedFn;
+      if (!filterFn) {
+        const maybe = filterColumn.columnDef.filterFn;
+        if (typeof maybe === 'function') filterFn = maybe as any;
+      }
+      if (!filterFn) return;
+
+      filteredRows = filteredRows.filter((row) => {
+        try {
+          return filterFn(row, filter.id, filter.value);
+        } catch (e) {
+          return true;
         }
-      }
+      });
     });
-    
-    // Apply global filter
+
+    // Apply global filter (simple fallback)
     const globalFilter = table.getState().globalFilter;
-    if (globalFilter && globalFilter.trim()) {
-      const globalFilterFn = table.options.globalFilterFn;
-      if (globalFilterFn) {
-        filteredRows = filteredRows.filter((row) =>
-          globalFilterFn(row, currentColumnId, globalFilter, (id) => table.getColumn(id))
+    if (globalFilter && String(globalFilter).trim()) {
+      filteredRows = filteredRows.filter((row) => {
+        return Object.values(row.original as object).some((value) =>
+          String(value).toLowerCase().includes(String(globalFilter).toLowerCase())
         );
-      } else {
-        // Fallback: simple string search across all columns
-        filteredRows = filteredRows.filter((row) => {
-          return Object.values(row.original as object).some((value) =>
-            String(value).toLowerCase().includes(globalFilter.toLowerCase())
-          );
-        });
-      }
+      });
     }
-    
+
     // Calculate min/max from filtered rows
     const values: number[] = [];
     filteredRows.forEach((row) => {
@@ -72,16 +71,16 @@ export function RangeSlider<TData>({
         values.push(value);
       }
     });
-    
+
     if (values.length === 0) {
-      return [0, 100, false];
+      return [0, 100, false] as const;
     }
-    
+
     const min = Math.min(...values);
     const max = Math.max(...values);
-    
-    return [min, max, true];
-  }, [column, table]);
+
+    return [min, max, true] as const;
+  }, [column, table, table.getState().columnFilters, table.getState().globalFilter]);
 
   // Get current filter value
   const filterValue = (column.getFilterValue() as [number, number]) || [

@@ -128,7 +128,7 @@ const booleanFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => 
 };
 
 // Custom filter function for hangar count
-const hangarFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
+const hangarFilter: FilterFn<Ship> = (row, _columnId, filterValue: string[]) => {
   const hangars = row.original.hangars || 0;
   return filterValue.includes(String(hangars));
 };

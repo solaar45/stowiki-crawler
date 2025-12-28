@@ -46,75 +46,68 @@ export function ColumnFilter<TData>({
   // Get unique values by MANUALLY filtering rows, excluding this column's filter
   const uniqueValues = useMemo(() => {
     const currentColumnId = column.id;
+
+    // Always use manual computation so counts reflect the other active column filters.
+
+    // Fallback: manual computation by applying other filters to the core row model
     const allRows = table.getCoreRowModel().rows;
-    
     // Get all filters except the current column
-    const otherFilters = table.getState().columnFilters.filter(
-      (f) => f.id !== currentColumnId
-    );
-    
+    const otherFilters = table.getState().columnFilters.filter((f) => f.id !== currentColumnId);
+
     // Apply all OTHER filters (not this column's filter)
     let filteredRows = allRows;
-    
-    // Apply column filters
+
     otherFilters.forEach((filter) => {
       const filterColumn = table.getColumn(filter.id);
-      if (filterColumn) {
-        const filterFn = filterColumn.columnDef.filterFn;
-        if (filterFn && typeof filterFn === 'function') {
-          filteredRows = filteredRows.filter((row) =>
-            filterFn(row, filter.id, filter.value, (id) => table.getColumn(id))
-          );
+      if (!filterColumn) return;
+
+      const resolvedFn: any = (filterColumn as any).getFilterFn ? (filterColumn as any).getFilterFn() : undefined;
+      let filterFn = resolvedFn;
+      if (!filterFn) {
+        const maybe = filterColumn.columnDef.filterFn;
+        if (typeof maybe === 'function') filterFn = maybe as any;
+      }
+      if (!filterFn) return;
+
+      filteredRows = filteredRows.filter((row) => {
+        try {
+          return filterFn(row, filter.id, filter.value);
+        } catch (e) {
+          return true;
         }
-      }
+      });
     });
-    
-    // Apply global filter
+
+    // Apply global filter (fallback simple search)
     const globalFilter = table.getState().globalFilter;
-    if (globalFilter && globalFilter.trim()) {
-      const globalFilterFn = table.options.globalFilterFn;
-      if (globalFilterFn) {
-        filteredRows = filteredRows.filter((row) =>
-          globalFilterFn(row, currentColumnId, globalFilter, (id) => table.getColumn(id))
+    if (globalFilter && String(globalFilter).trim()) {
+      filteredRows = filteredRows.filter((row) => {
+        return Object.values(row.original as object).some((value) =>
+          String(value).toLowerCase().includes(String(globalFilter).toLowerCase())
         );
-      } else {
-        // Fallback: simple string search across all columns
-        filteredRows = filteredRows.filter((row) => {
-          return Object.values(row.original as object).some((value) =>
-            String(value).toLowerCase().includes(globalFilter.toLowerCase())
-          );
-        });
-      }
+      });
     }
-    
-    // Now count unique values from the filtered rows
+
+    // Now count unique values from the filtered rows (support arrays)
     const valuesMap = new Map<string, number>();
-
     filteredRows.forEach((row) => {
-      const value = row.getValue(currentColumnId);
-      
-      // Handle special cases
-      let displayValue = String(value);
-      
-      // Handle null/undefined
-      if (value === null || value === undefined) {
-        displayValue = 'N/A';
-      }
-      // Handle boolean values (specifically for DHC)
-      else if (typeof value === 'boolean' || value === 'true' || value === 'false') {
-        displayValue = (value === true || value === 'true') ? 'Yes' : 'No';
-      }
-      // Handle Hangar values
-      else if (title === 'Hangar') {
-         if (value === 'true' || value === true || value === 'false' || value === false) {
-             return;
-         }
-      }
+      const value = row.getValue(currentColumnId as any);
 
-      const normalizedKey = displayValue.trim();
-      
-      const currentCount = valuesMap.get(normalizedKey) || 0;
-      valuesMap.set(normalizedKey, currentCount + 1);
+      const addKey = (raw: unknown) => {
+        let displayValue = '';
+        if (raw === null || raw === undefined) displayValue = 'N/A';
+        else if (typeof raw === 'boolean') displayValue = raw ? 'Yes' : 'No';
+        else displayValue = String(raw).trim();
+        if (displayValue === '') displayValue = 'N/A';
+        const currentCount = valuesMap.get(displayValue) || 0;
+        valuesMap.set(displayValue, currentCount + 1);
+      };
+
+      if (Array.isArray(value)) {
+        value.forEach((v) => addKey(v));
+      } else {
+        addKey(value);
+      }
     });
 
     const values = Array.from(valuesMap.entries()).map(([value, count]) => ({
@@ -134,6 +127,34 @@ export function ColumnFilter<TData>({
     );
   }, [uniqueValues, searchTerm]);
 
+  // Helper to apply a list of filters (array of {id, value}) to a set of rows
+  const applyFiltersToRows = (rows: any[], filters: Array<{ id: string; value: any }>) => {
+    let result = rows;
+
+    filters.forEach((filter) => {
+      const filterColumn = table.getColumn(filter.id);
+      if (!filterColumn) return;
+
+      const resolvedFn: any = (filterColumn as any).getFilterFn ? (filterColumn as any).getFilterFn() : undefined;
+      let filterFn = resolvedFn;
+      if (!filterFn) {
+        const maybe = filterColumn.columnDef.filterFn;
+        if (typeof maybe === 'function') filterFn = maybe as any;
+      }
+      if (!filterFn) return;
+
+      result = result.filter((row) => {
+        try {
+          return filterFn(row, filter.id, filter.value);
+        } catch (e) {
+          return true;
+        }
+      });
+    });
+
+    return result;
+  };
+
   // Get current filter value
   const filterValue = (column.getFilterValue() as string[]) || [];
   const hasActiveFilter = filterValue.length > 0;
@@ -145,6 +166,24 @@ export function ColumnFilter<TData>({
     const newFilter = currentFilter.includes(value)
       ? currentFilter.filter((v) => v !== value)
       : [...currentFilter, value];
+
+    // Before applying, simulate whether this selection would yield any rows.
+    const currentColumnId = column.id;
+    const coreRows = table.getCoreRowModel().rows;
+
+    // Build prospective filters: all other filters plus this column's prospective value
+    const otherFilters = table.getState().columnFilters.filter((f) => f.id !== currentColumnId);
+    const prospectiveFilters = otherFilters.map((f) => ({ id: f.id, value: f.value }));
+
+    if (newFilter.length > 0) {
+      prospectiveFilters.push({ id: currentColumnId, value: newFilter });
+    }
+
+    const resulting = applyFiltersToRows(coreRows, prospectiveFilters);
+    if (resulting.length === 0) {
+      // Do not apply a filter that would result in zero rows
+      return;
+    }
 
     column.setFilterValue(newFilter.length > 0 ? newFilter : undefined);
   };
@@ -279,8 +318,24 @@ export function ColumnFilter<TData>({
               <div className="space-y-0.5">
                 {filteredValues.map((item) => {
                   const isChecked = filterValue.includes(item.value);
-                  const isDisabled = item.count === 0;
-                  
+
+                  // Determine if selecting/toggling this value would produce zero results.
+                  const currentColumnId = column.id;
+                  const coreRows = table.getCoreRowModel().rows;
+                  const otherFilters = table.getState().columnFilters.filter((f) => f.id !== currentColumnId);
+                  const prospectiveFilters = otherFilters.map((f) => ({ id: f.id, value: f.value }));
+
+                  // Simulate toggled filter values for this column
+                  const currentColFilter = table.getState().columnFilters.find((f) => f.id === currentColumnId);
+                  const currentVals = (currentColFilter?.value as string[]) || [];
+                  const simulated = isChecked ? currentVals.filter((v) => v !== item.value) : [...currentVals, item.value];
+                  if (simulated.length > 0) {
+                    prospectiveFilters.push({ id: currentColumnId, value: simulated });
+                  }
+
+                  const resulting = applyFiltersToRows(coreRows, prospectiveFilters);
+                  const isDisabled = resulting.length === 0;
+
                   return (
                     <label
                       key={item.value}
@@ -312,7 +367,7 @@ export function ColumnFilter<TData>({
                         {item.value}
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                        ({item.count})
+                        ({resulting.length})
                       </span>
                     </label>
                   );
