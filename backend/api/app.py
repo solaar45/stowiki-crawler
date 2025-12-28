@@ -10,6 +10,7 @@ Features:
 import os
 import sys
 import logging
+import threading
 from datetime import datetime
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
@@ -308,8 +309,6 @@ def trigger_sync():
     
     try:
         # Start sync in background thread
-        import threading
-        
         if sync_type == 'full':
             thread = threading.Thread(target=db.full_sync, args=(scraper,), daemon=True)
         else:
@@ -390,30 +389,25 @@ def clear_cache():
     })
 
 
-# Initialize database on startup
-@app.before_first_request
-def init_app():
-    """Initialize app on first request"""
-    logger.info("Initializing app...")
-    
-    # Check if initial sync is needed
-    status = db.get_sync_status()
-    
-    if status['total_ships'] == 0:
-        logger.info("No ships in database - triggering initial sync")
-        import threading
-        thread = threading.Thread(target=db.full_sync, args=(scraper,), daemon=True)
-        thread.start()
-    
-    # Start background sync
-    db.start_background_sync(scraper)
-    
-    logger.info("App initialized")
-
-
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("DEBUG", "false").lower() == "true"
     
     logger.info(f"Starting API server on port {port}")
+    
+    # Initialize on startup
+    logger.info("Checking database status...")
+    status = db.get_sync_status()
+    
+    if status['total_ships'] == 0:
+        logger.info("No ships in database - triggering initial full sync")
+        thread = threading.Thread(target=db.full_sync, args=(scraper,), daemon=True)
+        thread.start()
+    else:
+        logger.info(f"Database contains {status['total_ships']} ships")
+    
+    # Start background sync
+    db.start_background_sync(scraper)
+    
+    logger.info("Starting Flask server...")
     app.run(host="0.0.0.0", port=port, debug=debug)
