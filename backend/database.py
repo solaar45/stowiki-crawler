@@ -223,14 +223,14 @@ class ShipDatabase:
     
     def get_ships(self, faction: Optional[str] = None, 
                   tier: Optional[int] = None, 
-                  limit: int = 500) -> List[Dict]:
+                  limit: int = 1000) -> List[Dict]:
         """
         Get ships from database (instant response)
         
         Args:
             faction: Filter by faction key (e.g., 'federation', 'klingon')
             tier: Filter by tier
-            limit: Maximum results
+            limit: Maximum results (default 1000)
         
         Returns:
             List of ship dictionaries
@@ -241,6 +241,28 @@ class ShipDatabase:
         query = "SELECT * FROM ships WHERE 1=1"
         params = []
         
+        # Filter by faction in SQL using LIKE on JSON array
+        if faction:
+            faction_map = {
+                "federation": ["Federation"],
+                "klingon": ["Klingon", "Klingon Empire"],
+                "romulan": ["Romulan Republic", "Romulan"],
+                "dominion": ["Dominion"],
+                "cross-faction": ["Cross-Faction"]
+            }
+            
+            target_factions = faction_map.get(faction.lower(), [])
+            
+            # Build OR conditions for all target faction names
+            if target_factions:
+                faction_conditions = []
+                for faction_name in target_factions:
+                    faction_conditions.append("faction LIKE ?")
+                    params.append(f'%"{faction_name}"%')
+                
+                query += f" AND ({' OR '.join(faction_conditions)})"
+        
+        # Filter by tier
         if tier:
             query += " AND tier = ?"
             params.append(tier)
@@ -252,8 +274,7 @@ class ShipDatabase:
         ships = [dict(row) for row in cursor.fetchall()]
         conn.close()
         
-        # Parse JSON fields and apply faction filter
-        filtered_ships = []
+        # Parse JSON fields and add computed properties
         for ship in ships:
             # Parse type
             if ship.get('type'):
@@ -283,22 +304,6 @@ class ShipDatabase:
             else:
                 ship['factionlede'] = None
             
-            # Apply faction filter
-            if faction:
-                faction_map = {
-                    "federation": ["Federation"],
-                    "klingon": ["Klingon", "Klingon Empire"],
-                    "romulan": ["Romulan Republic", "Romulan"],
-                    "dominion": ["Dominion"],
-                    "cross-faction": ["Cross-Faction"]
-                }
-                
-                target_factions = faction_map.get(faction.lower(), [])
-                
-                # Check if ship belongs to target faction
-                if not any(f in target_factions for f in ship['faction']):
-                    continue
-            
             # Add computed fields
             ship['can_use_cannons'] = ship.get('equipcannons') == 'yes'
             ship['total_consoles'] = (
@@ -322,10 +327,8 @@ class ShipDatabase:
             if ship.get('displaytype'):
                 parts.append(ship['displaytype'])
             ship['display_name'] = ' '.join(parts) if parts else ship['name']
-            
-            filtered_ships.append(ship)
         
-        return filtered_ships
+        return ships
     
     def get_ship_by_name(self, name: str) -> Optional[Dict]:
         """Get single ship by name"""
