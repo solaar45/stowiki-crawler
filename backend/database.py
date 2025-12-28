@@ -1,4 +1,4 @@
-"""
+"""  
 Ship Database Manager
 
 SQLite-based storage with:
@@ -118,7 +118,7 @@ class ShipDatabase:
         """)
         
         # Indexes for fast queries
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_faction ON ships(factionlede)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_faction ON ships(faction)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tier ON ships(tier)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_name ON ships(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_updated ON ships(updated_at)")
@@ -228,7 +228,7 @@ class ShipDatabase:
         Get ships from database (instant response)
         
         Args:
-            faction: Filter by faction key
+            faction: Filter by faction key (e.g., 'federation', 'klingon')
             tier: Filter by tier
             limit: Maximum results
         
@@ -241,20 +241,6 @@ class ShipDatabase:
         query = "SELECT * FROM ships WHERE 1=1"
         params = []
         
-        if faction:
-            # Map faction key to factionlede
-            faction_map = {
-                "federation": "Federation",
-                "klingon": "Klingon",
-                "romulan": "Romulan",
-                "dominion": "Dominion",
-                "cross-faction": "Cross Faction"
-            }
-            factionlede = faction_map.get(faction.lower())
-            if factionlede:
-                query += " AND factionlede = ?"
-                params.append(factionlede)
-        
         if tier:
             query += " AND tier = ?"
             params.append(tier)
@@ -266,17 +252,54 @@ class ShipDatabase:
         ships = [dict(row) for row in cursor.fetchall()]
         conn.close()
         
-        # Parse JSON fields
+        # Parse JSON fields and apply faction filter
+        filtered_ships = []
         for ship in ships:
+            # Parse type
             if ship.get('type'):
                 ship['type'] = json.loads(ship['type'])
             else:
                 ship['type'] = []
             
+            # Parse faction
             if ship.get('faction'):
-                ship['faction'] = json.loads(ship['faction'])
+                try:
+                    faction_data = json.loads(ship['faction'])
+                    if isinstance(faction_data, list):
+                        ship['faction'] = faction_data
+                    else:
+                        ship['faction'] = [faction_data]
+                except:
+                    ship['faction'] = [ship['faction']] if ship['faction'] else []
             else:
                 ship['faction'] = []
+            
+            # Set factionlede from first faction for display
+            if ship['faction']:
+                ship['factionlede'] = ship['faction'][0]
+            elif ship.get('factionlede'):
+                # Keep existing factionlede if present
+                pass
+            else:
+                ship['factionlede'] = None
+            
+            # Apply faction filter
+            if faction:
+                faction_map = {
+                    "federation": "Federation",
+                    "klingon": "Klingon",
+                    "romulan": ["Romulan Republic", "Romulan"],
+                    "dominion": "Dominion",
+                    "cross-faction": "Cross-Faction"
+                }
+                
+                target_factions = faction_map.get(faction.lower(), [])
+                if isinstance(target_factions, str):
+                    target_factions = [target_factions]
+                
+                # Check if ship belongs to target faction
+                if not any(f in target_factions for f in ship['faction']):
+                    continue
             
             # Add computed fields
             ship['can_use_cannons'] = ship.get('equipcannons') == 'yes'
@@ -301,8 +324,10 @@ class ShipDatabase:
             if ship.get('displaytype'):
                 parts.append(ship['displaytype'])
             ship['display_name'] = ' '.join(parts) if parts else ship['name']
+            
+            filtered_ships.append(ship)
         
-        return ships
+        return filtered_ships
     
     def get_ship_by_name(self, name: str) -> Optional[Dict]:
         """Get single ship by name"""
@@ -422,34 +447,48 @@ class ShipDatabase:
         return names
     
     def get_faction_summary(self) -> List[Dict]:
-        """Get ship counts per faction"""
+        """Get ship counts per faction by parsing faction JSON field"""
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.execute("""
-            SELECT factionlede, COUNT(*) as count
-            FROM ships
-            WHERE factionlede IS NOT NULL
-            GROUP BY factionlede
-            ORDER BY count DESC
-        """)
+        cursor = conn.execute("SELECT faction FROM ships WHERE faction IS NOT NULL")
         
+        # Count ships per faction
+        faction_counts = {}
+        for row in cursor.fetchall():
+            try:
+                faction_data = json.loads(row[0])
+                if isinstance(faction_data, list):
+                    factions = faction_data
+                else:
+                    factions = [faction_data]
+                
+                for faction in factions:
+                    if faction:
+                        faction_counts[faction] = faction_counts.get(faction, 0) + 1
+            except:
+                pass
+        
+        conn.close()
+        
+        # Map faction names to keys
         faction_map = {
             "Federation": "federation",
             "Klingon": "klingon",
+            "Klingon Empire": "klingon",
+            "Romulan Republic": "romulan",
             "Romulan": "romulan",
             "Dominion": "dominion",
-            "Cross Faction": "cross-faction"
+            "Cross-Faction": "cross-faction"
         }
         
+        # Build faction list
         factions = []
-        for row in cursor.fetchall():
-            name = row[0]
+        for name, count in sorted(faction_counts.items(), key=lambda x: -x[1]):
             factions.append({
                 "name": name,
                 "key": faction_map.get(name, name.lower().replace(' ', '-')),
-                "count": row[1]
+                "count": count
             })
         
-        conn.close()
         return factions
     
     def get_change_history(self, limit: int = 100, ship_name: Optional[str] = None) -> List[Dict]:
