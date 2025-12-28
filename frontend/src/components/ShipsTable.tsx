@@ -63,20 +63,6 @@ const hangarFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
   return filterValue.includes(String(hangars));
 };
 
-// Custom filter function for admiralty ranges
-const admiraltyRangeFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
-  const value = (row.getValue(columnId) as number) || 0;
-  
-  return filterValue.some(range => {
-    if (range === '0-50') return value >= 0 && value <= 50;
-    if (range === '51-100') return value > 50 && value <= 100;
-    if (range === '101-150') return value > 100 && value <= 150;
-    if (range === '151-200') return value > 150 && value <= 200;
-    if (range === '201+') return value > 200;
-    return false;
-  });
-};
-
 // Custom filter function for numeric range
 const rangeFilter: FilterFn<Ship> = (row, columnId, filterValue: [number, number]) => {
   const value = row.getValue(columnId) as number | undefined;
@@ -404,75 +390,51 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         enableColumnFilter: false,
       },
 
-      // Admiralty
+      // Admiralty - changed to show actual values and use RangeSlider
       {
         accessorKey: 'admiraltyeng',
         header: ({ column }) => (
           <div className="flex items-center gap-2">
             <span>Eng</span>
-            <ColumnFilter column={column} title="Admiralty Eng" />
+            <RangeSlider column={column} title="Admiralty Eng" />
           </div>
         ),
         cell: ({ row }) => {
           const eng = row.getValue('admiraltyeng') as number | undefined;
           return eng || <span className="text-gray-400">-</span>;
         },
-        filterFn: admiraltyRangeFilter,
-        // Add virtual faceted values for ranges
-        accessorFn: (row) => {
-          const value = row.admiraltyeng || 0;
-          if (value <= 50) return '0-50';
-          if (value <= 100) return '51-100';
-          if (value <= 150) return '101-150';
-          if (value <= 200) return '151-200';
-          return '201+';
-        },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'admiraltytac',
         header: ({ column }) => (
           <div className="flex items-center gap-2">
             <span>Tac</span>
-            <ColumnFilter column={column} title="Admiralty Tac" />
+            <RangeSlider column={column} title="Admiralty Tac" />
           </div>
         ),
         cell: ({ row }) => {
           const tac = row.getValue('admiraltytac') as number | undefined;
           return tac || <span className="text-gray-400">-</span>;
         },
-        filterFn: admiraltyRangeFilter,
-        accessorFn: (row) => {
-          const value = row.admiraltytac || 0;
-          if (value <= 50) return '0-50';
-          if (value <= 100) return '51-100';
-          if (value <= 150) return '101-150';
-          if (value <= 200) return '151-200';
-          return '201+';
-        },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'admiraltysci',
         header: ({ column }) => (
           <div className="flex items-center gap-2">
             <span>Sci</span>
-            <ColumnFilter column={column} title="Admiralty Sci" />
+            <RangeSlider column={column} title="Admiralty Sci" />
           </div>
         ),
         cell: ({ row }) => {
           const sci = row.getValue('admiraltysci') as number | undefined;
           return sci || <span className="text-gray-400">-</span>;
         },
-        filterFn: admiraltyRangeFilter,
-        accessorFn: (row) => {
-          const value = row.admiraltysci || 0;
-          if (value <= 50) return '0-50';
-          if (value <= 100) return '51-100';
-          if (value <= 150) return '101-150';
-          if (value <= 200) return '151-200';
-          return '201+';
-        },
+        filterFn: rangeFilter,
       },
 
+      // Hangar - fixed display logic: 0 = gray X, 1+ = green check with count
       {
         accessorKey: 'has_hangar',
         header: ({ column }) => (
@@ -482,12 +444,11 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           </div>
         ),
         cell: ({ row }) => {
-          const hasHangar = row.getValue('has_hangar') as boolean;
           const hangars = row.original.hangars || 0;
 
           return (
             <div className="flex justify-center">
-              {hasHangar ? (
+              {hangars > 0 ? (
                 <span className="text-green-600 dark:text-green-400" title={`${hangars} hangar bay(s)`}>
                   ✓ ({hangars})
                 </span>
