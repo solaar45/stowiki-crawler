@@ -2,7 +2,7 @@
 import asyncio
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 from typing import Dict, Any
@@ -158,7 +158,7 @@ def get_ships_metadata() -> Response:
         if metadata:
             # Calculate age
             last_scraped = datetime.fromisoformat(metadata["last_scraped"])
-            age_hours = (datetime.utcnow() - last_scraped).total_seconds() / 3600
+            age_hours = (datetime.now(timezone.utc) - last_scraped).total_seconds() / 3600
             
             return jsonify({
                 "success": True,

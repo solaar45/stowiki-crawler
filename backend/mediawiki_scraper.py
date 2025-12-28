@@ -224,6 +224,7 @@ class MediaWikiScraper:
             wikicode = mwparserfromhell.parse(wikitext)
             templates = wikicode.filter_templates()
 
+            # IMPORTANT: Always set Ship name and Link first
             ship_data = {
                 "Ship": page_title.replace("_", " "),
                 "Link": f"{self.base_url}/wiki/{quote(page_title)}",
@@ -239,7 +240,7 @@ class MediaWikiScraper:
 
             if not infobox:
                 logger.warning(f"No infobox found for {page_title}")
-                return ship_data
+                return ship_data  # Return with at least Ship and Link
 
             # Extract all parameters from infobox
             for param in infobox.params:
@@ -256,7 +257,11 @@ class MediaWikiScraper:
 
         except Exception as e:
             logger.error(f"Failed to parse infobox for {page_title}: {e}")
-            return {"Ship": page_title, "Link": f"{self.base_url}/wiki/{quote(page_title)}"}
+            # Always return at least Ship and Link
+            return {
+                "Ship": page_title.replace("_", " "),
+                "Link": f"{self.base_url}/wiki/{quote(page_title)}"
+            }
 
     def _clean_wikitext(self, text: str) -> str:
         """Clean wikitext markup from text.
@@ -306,7 +311,11 @@ class MediaWikiScraper:
         """
         wikitext = await self.get_page_wikitext(page_title)
         if not wikitext:
-            return None
+            # Return minimal data if wikitext fetch failed
+            return {
+                "Ship": page_title.replace("_", " "),
+                "Link": f"{self.base_url}/wiki/{quote(page_title)}"
+            }
 
         ship_data = self.parse_ship_infobox(wikitext, page_title)
         return ship_data

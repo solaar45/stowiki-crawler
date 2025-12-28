@@ -2,7 +2,7 @@
 import json
 import aiofiles
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from models.ship import Ship
 from logger import setup_logger
@@ -37,7 +37,7 @@ class JSONStorage:
             
             # Update metadata
             metadata = {
-                "last_scraped": datetime.utcnow().isoformat(),
+                "last_scraped": datetime.now(timezone.utc).isoformat(),
                 "ship_count": len(ships),
                 "factions_scraped": list(set(ship.faction for ship in ships if ship.faction))
             }
@@ -122,7 +122,7 @@ class JSONStorage:
         
         try:
             last_scraped = datetime.fromisoformat(metadata["last_scraped"])
-            age = datetime.utcnow() - last_scraped
+            age = datetime.now(timezone.utc) - last_scraped
             age_hours = age.total_seconds() / 3600
             
             needs_refresh = age_hours > max_age_hours
