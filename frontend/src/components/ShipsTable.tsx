@@ -87,6 +87,46 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         },
       },
       {
+        accessorKey: 'cost',
+        header: 'Cost',
+        cell: ({ row }) => {
+          const cost = row.getValue('cost') as string | undefined;
+          return cost || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'hull',
+        header: ({ column }) => (
+          <button
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
+          >
+            Hull
+            <ArrowUpDown className="h-4 w-4" />
+          </button>
+        ),
+        cell: ({ row }) => {
+          const hull = row.getValue('hull') as number | undefined;
+          return hull ? hull.toLocaleString() : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'hullmod',
+        header: 'Hull Mod',
+        cell: ({ row }) => {
+          const mod = row.getValue('hullmod') as number | undefined;
+          return mod ? mod.toFixed(2) : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'shieldmod',
+        header: 'Shield Mod',
+        cell: ({ row }) => {
+          const mod = row.getValue('shieldmod') as number | undefined;
+          return mod ? mod.toFixed(2) : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
         accessorKey: 'fore',
         header: 'Fore',
         cell: ({ row }) => {
@@ -119,22 +159,6 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         },
       },
       {
-        accessorKey: 'hull',
-        header: ({ column }) => (
-          <button
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
-          >
-            Hull
-            <ArrowUpDown className="h-4 w-4" />
-          </button>
-        ),
-        cell: ({ row }) => {
-          const hull = row.getValue('hull') as number | undefined;
-          return hull ? hull.toLocaleString() : <span className="text-gray-400">-</span>;
-        },
-      },
-      {
         accessorKey: 'turnrate',
         header: 'Turn Rate',
         cell: ({ row }) => {
@@ -143,21 +167,93 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         },
       },
       {
-        accessorKey: 'total_consoles',
-        header: 'Consoles',
+        accessorKey: 'impulse',
+        header: 'Impulse',
         cell: ({ row }) => {
-          const total = row.getValue('total_consoles') as number;
-          const tac = row.original.consolestac || 0;
-          const eng = row.original.consoleseng || 0;
-          const sci = row.original.consolessci || 0;
-          
-          if (total === 0) return <span className="text-gray-400">-</span>;
-          
+          const impulse = row.getValue('impulse') as number | undefined;
+          return impulse ? impulse.toFixed(2) : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'inertia',
+        header: 'Inertia',
+        cell: ({ row }) => {
+          const inertia = row.getValue('inertia') as number | undefined;
+          return inertia ? inertia : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'consolestac',
+        header: 'TAC',
+        cell: ({ row }) => {
+          const tac = row.getValue('consolestac') as number | undefined;
+          return tac || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'consoleseng',
+        header: 'ENG',
+        cell: ({ row }) => {
+          const eng = row.getValue('consoleseng') as number | undefined;
+          return eng || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'consolessci',
+        header: 'SCI',
+        cell: ({ row }) => {
+          const sci = row.getValue('consolessci') as number | undefined;
+          return sci || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'boffs',
+        header: 'Bridge Officers',
+        cell: ({ row }) => {
+          const boffs = row.getValue('boffs') as string | undefined;
+          if (!boffs) return <span className="text-gray-400">-</span>;
           return (
-            <span title={`TAC: ${tac}, ENG: ${eng}, SCI: ${sci}`}>
-              {total} ({tac}/{eng}/{sci})
+            <span className="text-xs" title={boffs}>
+              {boffs.length > 30 ? boffs.substring(0, 30) + '...' : boffs}
             </span>
           );
+        },
+      },
+      {
+        accessorKey: 'abilities',
+        header: 'Abilities',
+        cell: ({ row }) => {
+          const abilities = row.getValue('abilities') as string | undefined;
+          if (!abilities) return <span className="text-gray-400">-</span>;
+          return (
+            <span className="text-xs" title={abilities}>
+              {abilities.length > 30 ? abilities.substring(0, 30) + '...' : abilities}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'admiraltyeng',
+        header: 'ADM ENG',
+        cell: ({ row }) => {
+          const eng = row.getValue('admiraltyeng') as number | undefined;
+          return eng || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'admiraltytac',
+        header: 'ADM TAC',
+        cell: ({ row }) => {
+          const tac = row.getValue('admiraltytac') as number | undefined;
+          return tac || <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'admiraltysci',
+        header: 'ADM SCI',
+        cell: ({ row }) => {
+          const sci = row.getValue('admiraltysci') as number | undefined;
+          return sci || <span className="text-gray-400">-</span>;
         },
       },
       {
@@ -229,7 +325,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
                     >
                       {header.isPlaceholder
                         ? null
@@ -251,7 +347,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100"
+                      className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
