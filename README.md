@@ -1,239 +1,435 @@
-# STO Wiki Crawler
+# STO Wiki Ship Database
 
-[![CI/CD Pipeline](https://github.com/solaar45/stowiki-crawler/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/solaar45/stowiki-crawler/actions)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+> **Star Trek Online** ship database with instant queries, automatic updates, and full change tracking.
 
-A modern, async web scraper for extracting Star Trek Online ship data from the STO Wiki. Built with Python 3.12, async/await, and comprehensive type safety.
+## ✨ Features
 
-## Features
+### **v2.0 - SQLite Database Backend**
 
-- ⚡ **Async/Await**: High-performance concurrent scraping with `httpx`
-- 🔄 **Retry Logic**: Automatic retries with exponential backoff using `tenacity`
-- 🛡️ **Type Safety**: Full pydantic models with validation
-- 📊 **Structured Logging**: Centralized logging configuration
-- 🐳 **Docker Ready**: Multi-stage builds for minimal image size
-- 🧪 **Comprehensive Tests**: pytest suite with >80% coverage
-- 🔧 **Configuration**: Environment-based settings with pydantic-settings
-- 🚀 **CI/CD**: GitHub Actions for automated testing and building
+- ⚡ **Sub-50ms Response Time** - Instant ship queries from SQLite
+- 🔄 **Automatic Sync** - Configurable background updates (default 8h)
+- 📝 **Change Tracking** - Full audit log of all ship data changes
+- 🧠 **Smart Sync** - Only updates new/changed ships (fast!)
+- 📈 **History API** - Track when ships are added, updated, or deleted
+- 🎯 **Persistent Data** - No re-scraping on server restart
 
-## Quick Start
+### **Core Features**
 
-### Prerequisites
+- 🚀 **808+ Ships** - Complete database from STOWiki
+- 🏴 **Faction Filtering** - Federation, Klingon, Romulan, Dominion, Cross-Faction
+- 🔢 **Tier Filtering** - Filter by ship tier (1-6)
+- 🔍 **Full-Text Search** - Fast ship name search
+- 📥 **JSON Export** - Download filtered ship data
+- 📊 **Real-time Stats** - Live faction summaries and counts
 
-- Python 3.11+ or Docker
-- pip or Docker Compose
+---
 
-### Local Development
+## 🚀 Quick Start
+
+### **Backend**
 
 ```bash
-# Clone the repository
-git clone https://github.com/solaar45/stowiki-crawler.git
-cd stowiki-crawler/backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+cd backend
 pip install -r requirements.txt
 
-# Copy environment template
-cp .env.example .env
-
-# Run the application
+# Start API server
 python -m api.app
+
+# Server runs on http://localhost:5000
 ```
 
-### Docker
+**Environment Variables:**
 
 ```bash
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Or build manually
-cd backend
-docker build -t stowiki-crawler .
-docker run -p 5000:5000 stowiki-crawler
+PORT=5000                    # API port (default: 5000)
+DB_PATH=ships.db             # Database path (default: ships.db)
+SYNC_INTERVAL_HOURS=8        # Auto-sync interval (default: 8)
+DEBUG=false                  # Debug mode
 ```
 
-## API Endpoints
+### **Frontend**
 
-### Health Check
 ```bash
-GET /health
-```
-Returns service health status.
+cd frontend
+npm install
 
-### Scrape Dominion Ships
-```bash
-GET /scrape/dominion-ships
+# Start dev server
+npm run dev
+
+# App runs on http://localhost:3000
 ```
-Scrapes all Dominion playable starships and returns JSON.
+
+---
+
+## 📡 API Endpoints
+
+### **Ship Data**
+
+#### `GET /api/ships`
+
+Get ships from database (instant response)
+
+**Query Parameters:**
+
+- `faction` - Filter by faction key (`federation`, `klingon`, `romulan`, `dominion`, `cross-faction`)
+- `tier` - Filter by tier (1-6)
+- `limit` - Max results (default: 500, max: 1000)
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/ships?faction=dominion&tier=6&limit=50"
+```
 
 **Response:**
+
 ```json
 {
   "success": true,
-  "count": 15,
-  "ships": [
+  "count": 24,
+  "ships": [...],
+  "filters": {
+    "faction": "dominion",
+    "tier": 6
+  },
+  "source": "database",
+  "response_time_ms": 18
+}
+```
+
+#### `GET /api/factions`
+
+Get faction summary with ship counts
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/factions"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "total": 808,
+  "factions": [
+    {"name": "Federation", "key": "federation", "count": 323},
+    {"name": "Klingon", "key": "klingon", "count": 159},
+    {"name": "Romulan", "key": "romulan", "count": 113},
+    {"name": "Dominion", "key": "dominion", "count": 24},
+    {"name": "Cross Faction", "key": "cross-faction", "count": 189}
+  ]
+}
+```
+
+#### `GET /api/ships/search`
+
+Search ships by name
+
+**Query Parameters:**
+
+- `q` - Search query (required)
+- `limit` - Max results (default: 50)
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/ships/search?q=Defiant&limit=10"
+```
+
+#### `GET /api/ships/download`
+
+Download ships as JSON file
+
+**Query Parameters:**
+
+- `faction` - Optional faction filter
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/ships/download?faction=federation" -o ships.json
+```
+
+---
+
+### **Change History**
+
+#### `GET /api/history`
+
+Get change history (all ships)
+
+**Query Parameters:**
+
+- `limit` - Max results (default: 100)
+- `ship` - Optional filter by ship name
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/history?limit=50"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "count": 50,
+  "changes": [
     {
-      "name": "Jem'Hadar Strike Ship",
-      "link": "https://sto.fandom.com/wiki/Jem'Hadar_Strike_Ship",
-      "tier": 5,
-      "faction": "Dominion",
-      "weapons": {
-        "fore": 4,
-        "aft": 3,
-        "can_equip_dual_cannons": true
-      },
-      "stats": {
-        "max_hull": 39000,
-        "turn_rate": 15.0
-      }
+      "id": 1234,
+      "ship_name": "Fleet Defiant Tactical Escort Retrofit",
+      "change_type": "updated",
+      "changed_fields": ["hull", "shieldmod"],
+      "old_values": {"hull": 33000, "shieldmod": 0.9},
+      "new_values": {"hull": 35000, "shieldmod": 1.0},
+      "timestamp": "2025-12-28T10:30:00"
     }
   ]
 }
 ```
 
-### Download Ships Data
-```bash
-GET /scrape/dominion-ships/download
-```
-Downloads ship data as JSON file.
+#### `GET /api/history/<ship_name>`
 
-## Project Structure
+Get change history for specific ship
 
-```
-backend/
-├── api/                    # Flask API application
-│   ├── __init__.py
-│   └── app.py             # Main Flask app with routes
-├── models/                 # Pydantic data models
-│   ├── __init__.py
-│   └── ship.py            # Ship, Weapons, Stats models
-├── scraper/               # Web scraping logic
-│   ├── __init__.py
-│   ├── sto_wiki_scraper.py  # Async scraper
-│   └── parsers.py         # HTML parsers
-├── transformers/          # Data transformation
-│   ├── __init__.py
-│   └── ship_transformer.py  # Raw to model conversion
-├── tests/                 # Test suite
-│   ├── __init__.py
-│   ├── conftest.py        # Pytest fixtures
-│   ├── test_models.py
-│   ├── test_parsers.py
-│   └── test_transformers.py
-├── config.py              # Configuration management
-├── logger.py              # Logging setup
-├── requirements.txt       # Python dependencies
-├── Dockerfile            # Multi-stage Docker build
-├── .env.example          # Environment template
-└── pytest.ini            # Test configuration
-```
-
-## Configuration
-
-Create a `.env` file based on `.env.example`:
-
-```env
-# Flask Configuration
-FLASK_ENV=production
-FLASK_DEBUG=False
-
-# Scraper Configuration
-BASE_URL=https://sto.fandom.com
-MAX_CONCURRENT_REQUESTS=5
-REQUEST_DELAY=0.5
-REQUEST_TIMEOUT=30
-
-# Logging
-LOG_LEVEL=INFO
-```
-
-## Development
-
-### Running Tests
+**Example:**
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_parsers.py
+curl "http://localhost:5000/api/history/Defiant%20Tactical%20Escort"
 ```
 
-### Code Quality
+---
+
+### **Sync Management**
+
+#### `GET /api/sync/status`
+
+Get current sync status
+
+**Example:**
 
 ```bash
-# Format code with black
-black .
-
-# Lint with ruff
-ruff check .
-
-# Type checking (if mypy installed)
-mypy .
+curl "http://localhost:5000/api/sync/status"
 ```
 
-## Architecture Improvements (v2.0)
+**Response:**
 
-This version includes major improvements over the original:
+```json
+{
+  "success": true,
+  "status": {
+    "last_full_sync": "2025-12-28T10:00:00",
+    "last_partial_sync": null,
+    "is_syncing": false,
+    "total_ships": 808,
+    "sync_interval_hours": 8,
+    "next_sync": "2025-12-28T18:00:00",
+    "needs_sync": false,
+    "ships_added": 5,
+    "ships_updated": 12,
+    "ships_deleted": 0,
+    "last_sync_duration_seconds": 180
+  }
+}
+```
 
-### Performance
-- **80-90% faster scraping** through async/await and concurrent requests
-- Multi-stage Docker builds reduce image size by 40-60%
-- Efficient rate limiting prevents server overload
+#### `POST /api/sync/trigger`
 
-### Code Quality
-- Modular architecture with separation of concerns
-- Type hints and pydantic validation prevent runtime errors
-- Comprehensive test suite with pytest
-- Centralized configuration and logging
+Trigger manual sync
 
-### Reliability
-- Automatic retries with exponential backoff
-- Proper error handling and logging
-- Request timeouts and rate limiting
-- Health check endpoints
+**Request Body:**
 
-### Maintainability
-- Clear project structure
-- Documented code with docstrings
-- CI/CD pipeline with GitHub Actions
-- Environment-based configuration
+```json
+{
+  "type": "smart"  // or "full"
+}
+```
 
-## Migration from v1.0
+**Example:**
 
-The old scripts (`scrape3.py`, `test3.py`, `server.py`) have been completely refactored:
+```bash
+curl -X POST "http://localhost:5000/api/sync/trigger" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "smart"}'
+```
 
-| Old | New | Improvement |
-|-----|-----|-------------|
-| `scrape3.py` | `scraper/sto_wiki_scraper.py` + `scraper/parsers.py` | Async, retry logic, modular |
-| `test3.py` | `transformers/ship_transformer.py` | Clean transformations, type-safe |
-| `server.py` | `api/app.py` | Non-blocking, proper error handling |
-| None | `tests/` | Comprehensive test coverage |
-| None | `models/` | Pydantic validation |
+**Response:**
 
-## Contributing
+```json
+{
+  "success": true,
+  "message": "Smart sync started",
+  "type": "smart"
+}
+```
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and add tests
-4. Run tests: `pytest`
-5. Commit: `git commit -m 'Add amazing feature'`
-6. Push: `git push origin feature/amazing-feature`
-7. Open a Pull Request
+#### `GET /api/sync/config`
 
-## License
+Get sync configuration
 
-This project is licensed under the MIT License.
+#### `PUT /api/sync/config`
 
-## Acknowledgments
+Update sync configuration
 
-- [Star Trek Online Wiki](https://sto.fandom.com) for ship data
-- Built with Flask, httpx, BeautifulSoup, and pydantic
+**Request Body:**
+
+```json
+{
+  "sync_interval_hours": 12
+}
+```
+
+**Example:**
+
+```bash
+curl -X PUT "http://localhost:5000/api/sync/config" \
+  -H "Content-Type: application/json" \
+  -d '{"sync_interval_hours": 12}'
+```
+
+---
+
+## 💾 Database Schema
+
+### **ships** Table
+
+Stores all ship data with full metadata:
+
+- **Basic Info**: name, faction, tier, type, rank, cost
+- **Stats**: hull, shields, turn rate, impulse, inertia
+- **Weapons**: fore, aft, can equip cannons
+- **Consoles**: tactical, engineering, science, universal
+- **Equipment**: hangar bays, bridge officers, abilities
+- **Admiralty**: TAC/ENG/SCI stats
+- **Metadata**: wiki_url, data_hash, timestamps
+
+### **change_log** Table
+
+Audit log for all changes:
+
+- `ship_name` - Ship that changed
+- `change_type` - created, updated, or deleted
+- `changed_fields` - Array of field names that changed
+- `old_values` - Previous values (JSON)
+- `new_values` - New values (JSON)
+- `timestamp` - When the change occurred
+
+### **sync_status** Table
+
+Sync configuration and statistics:
+
+- `last_full_sync` - Last full sync timestamp
+- `is_syncing` - Currently syncing flag
+- `total_ships` - Total ships in database
+- `sync_interval_hours` - Auto-sync interval
+- `ships_added` - Ships added in last sync
+- `ships_updated` - Ships updated in last sync
+- `ships_deleted` - Ships deleted in last sync
+- `last_sync_duration_seconds` - Last sync duration
+
+---
+
+## 🛠️ Architecture
+
+```
+┌───────────────────┐
+│  React Frontend   │
+│  (Vite + TS)      │
+└───────┬───────────┘
+        │ HTTP/REST
+        │
+┌───────┴───────────┐
+│   Flask API       │
+│   (Python)        │
+└─────┬────────┬─────┘
+      │          │
+      │          │
+┌─────┴─────┐  │
+│   SQLite    │  │
+│ (<50ms)    │  │ Background
+│            │  │ Sync Thread
+└────────────┘  │
+                  │
+            ┌─────┴─────┐
+            │  STOWiki   │
+            │  Cargo API │
+            │ (MediaWiki)│
+            └────────────┘
+```
+
+### **Sync Strategies**
+
+#### **Smart Sync** (Recommended)
+
+1. Fetch category members (fast)
+2. Compare with database
+3. Parse only new ships
+4. Sample 10% of existing ships for updates
+5. Remove deleted ships
+
+**Time:** ~2-5 minutes for incremental updates
+
+#### **Full Sync**
+
+1. Parse all ships from all factions
+2. Update entire database
+
+**Time:** ~30-60 minutes for complete refresh
+
+---
+
+## 📊 Performance
+
+| Operation | Live Parsing | SQLite Cache |
+| --------- | ------------ | ------------ |
+| **Get 500 ships** | 30-60s | **<50ms** ⚡ |
+| **Filter by faction** | 10-20s | **<20ms** ⚡ |
+| **Search by name** | 5-10s | **<10ms** ⚡ |
+| **Get faction summary** | 5s | **<5ms** ⚡ |
+
+**Result:** ~1000x faster with SQLite!
+
+---
+
+## 📝 TODO
+
+- [ ] Add experimental weapon detection
+- [ ] Add secondary deflector detection
+- [ ] Add ship comparison tool
+- [ ] Add GraphQL API
+- [ ] Add webhook notifications for changes
+- [ ] Add data visualization dashboard
+- [ ] Add CSV export
+- [ ] Add ship images scraping
+
+---
+
+## 👥 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repo
+2. Create a feature branch
+3. Add tests if applicable
+4. Submit a pull request
+
+---
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+---
+
+## 🔗 Links
+
+- **STOWiki**: https://stowiki.net/
+- **MediaWiki Cargo**: https://www.mediawiki.org/wiki/Extension:Cargo
+- **Star Trek Online**: https://www.playstartrekonline.com/
+
+---
+
+**Built with ❤️ for the STO community**

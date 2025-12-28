@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: stowiki-backend-dev
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=5000
+      - STORAGE_TYPE=json
+    volumes:
+      - ./backend:/app
+      - backend-venv:/app/venv
+    command: python -m api.app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: stowiki-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-venv:
+
+networks:
+  default:
+    name: stowiki-dev-network
