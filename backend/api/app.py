@@ -1,19 +1,24 @@
-"""Main Flask application with MediaWiki API support and auto-refresh."""
-import asyncio
+"""
+Flask API - Cargo-powered backend
+
+Direct database access via STOWiki's Cargo extension.
+No scraping needed - just query the structured database!
+
+This is 10x simpler than the MediaWiki Parse API approach:
+- No template parsing
+- No complex transformations
+- No async/await complexity
+- Just clean HTTP → JSON queries
+"""
 import json
-import threading
-from datetime import datetime, timezone
 from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-from config import settings
+from cargo_api import CargoAPIClient
+from models.ship import Ship
 from logger import setup_logger
-from mediawiki_scraper import MediaWikiScraper
-from transformers import ShipTransformer
-from models.faction import Faction
-from storage.json_storage import JSONStorage
-from storage.database_storage import DatabaseStorage
+from config import settings
 
 logger = setup_logger(__name__)
 
@@ -22,343 +27,241 @@ app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
 CORS(app)
 
-# Initialize storage backend
-if settings.database_url and settings.database_url != "sqlite:///ships.db":
-    storage = DatabaseStorage(settings.database_url)
-    logger.info(f"Using database storage: {settings.database_url}")
-else:
-    storage = JSONStorage("ships.json")
-    logger.info("Using JSON file storage")
-
-# Initialize MediaWiki API scraper
-scraper = MediaWikiScraper()
-logger.info("Using MediaWiki API scraper (10-15x faster!)")
-
-# Global flag for background scraping
-is_scraping = False
-
-
-def parse_datetime_safely(dt_str: str) -> datetime:
-    """Parse datetime string handling both naive and timezone-aware formats.
-    
-    Args:
-        dt_str: ISO format datetime string
-        
-    Returns:
-        Timezone-aware datetime object
-    """
-    dt = datetime.fromisoformat(dt_str)
-    
-    # If naive, assume UTC
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    
-    return dt
-
-
-def run_async(coro):
-    """Helper to run async functions in Flask routes."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
-
-def background_scrape_all():
-    """Background scraping in separate thread."""
-    global is_scraping
-    
-    try:
-        is_scraping = True
-        logger.info("Starting background scrape...")
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        all_ships = []
-        for faction in Faction:
-            logger.info(f"Background scraping {faction.value} ships...")
-            url = Faction.get_wiki_url(faction)
-            
-            ship_titles = loop.run_until_complete(
-                scraper.get_pages_in_category_by_url(url)
-            )
-            raw_ships = loop.run_until_complete(
-                scraper.scrape_all_ships(ship_titles)
-            )
-            
-            for ship_data in raw_ships:
-                ship_data["Faction"] = faction.value
-            
-            all_ships.extend(raw_ships)
-        
-        ships = ShipTransformer.transform_ships(all_ships)
-        loop.run_until_complete(storage.save_ships(ships))
-        
-        logger.info(f"Background scrape completed: {len(ships)} ships")
-        loop.close()
-        
-    except Exception as e:
-        logger.error(f"Background scrape failed: {e}", exc_info=True)
-    finally:
-        is_scraping = False
+# Initialize Cargo API client
+cargo = CargoAPIClient()
+logger.info("Cargo API client initialized")
 
 
 @app.route("/", methods=["GET"])
 def index() -> Dict[str, Any]:
-    """API root endpoint with information."""
+    """
+    API root endpoint with information.
+    
+    Returns:
+        API metadata and available endpoints
+    """
     return jsonify({
-        "name": "STO Wiki Crawler API",
-        "version": "2.1.0",
-        "scraper": "MediaWiki API (10-15x faster!)",
-        "wiki_source": "stowiki.net",
-        "storage": "database" if isinstance(storage, DatabaseStorage) else "json",
-        "cache_enabled": settings.enable_cache,
-        "auto_refresh_enabled": settings.auto_refresh_enabled,
+        "name": "STOWiki Cargo API",
+        "version": "3.0.0",
+        "description": "Direct Cargo database access - 10x simpler, 10x faster!",
+        "data_source": "stowiki.net Cargo database",
+        "wiki_url": "https://stowiki.net",
+        "advantages": [
+            "No scraping - direct database queries",
+            "Structured JSON responses",
+            "Instant results (no parsing overhead)",
+            "SQL-like filtering support",
+            "Bulk queries (all ships in one request)"
+        ],
         "endpoints": {
             "/": "API information",
             "/health": "Health check",
-            "/factions": "List all available factions",
-            "/scrape/all": "Scrape all factions (MediaWiki API)",
-            "/scrape/{faction}": "Scrape specific faction",
-            "/ships": "Get all ships (optional ?faction= filter)",
-            "/ships/download": "Download all ships as JSON",
-            "/ships/count": "Get total ship count",
-            "/ships/metadata": "Get ships metadata (last scraped, age, etc.)",
-            "/ships/auto-refresh": "Trigger auto-refresh if needed",
-            "/cache/stats": "Get cache statistics",
-            "/cache/clear": "Clear all cached data",
+            "/api/ships": "Get all ships (supports ?faction=, ?tier=, ?type=, ?limit=)",
+            "/api/ships/<name>": "Get single ship by name",
+            "/api/ships/search": "Search ships (?q=query)",
+            "/api/ships/download": "Download ships as JSON file",
+            "/api/factions": "Get faction summary with ship counts",
+            "/api/types": "Get all ship types"
         }
     })
 
 
 @app.route("/health", methods=["GET"])
 def health() -> Dict[str, str]:
-    """Health check endpoint."""
+    """
+    Health check endpoint.
+    
+    Returns:
+        Service health status
+    """
     return jsonify({
         "status": "healthy",
-        "scraper": "MediaWiki API",
-        "storage": type(storage).__name__,
-        "cache_enabled": settings.enable_cache,
-        "auto_refresh_enabled": settings.auto_refresh_enabled,
-        "is_scraping": is_scraping,
-        "wiki_source": settings.base_url
+        "api": "Cargo API",
+        "version": "3.0.0",
+        "data_source": "stowiki.net"
     })
 
 
-@app.route("/factions", methods=["GET"])
-def list_factions() -> Response:
-    """List all available factions."""
-    factions = [
-        {
-            "name": faction.value,
-            "key": faction.name.lower(),
-            "url": Faction.get_wiki_url(faction)
-        }
-        for faction in Faction
-    ]
-    
-    return jsonify({
-        "success": True,
-        "count": len(factions),
-        "factions": factions
-    })
-
-
-@app.route("/ships/metadata", methods=["GET"])
-def get_ships_metadata() -> Response:
-    """Get ships metadata including last scrape time."""
-    try:
-        metadata = run_async(storage.get_metadata())
-        
-        if metadata:
-            # Calculate age - handle both naive and timezone-aware datetimes
-            last_scraped = parse_datetime_safely(metadata["last_scraped"])
-            age_hours = (datetime.now(timezone.utc) - last_scraped).total_seconds() / 3600
-            
-            return jsonify({
-                "success": True,
-                "last_scraped": metadata["last_scraped"],
-                "age_hours": round(age_hours, 2),
-                "ship_count": metadata["ship_count"],
-                "factions_scraped": metadata.get("factions_scraped", []),
-                "needs_refresh": age_hours > settings.auto_refresh_max_age_hours,
-                "is_scraping": is_scraping
-            })
-        else:
-            return jsonify({
-                "success": True,
-                "last_scraped": None,
-                "age_hours": None,
-                "ship_count": 0,
-                "factions_scraped": [],
-                "needs_refresh": True,
-                "is_scraping": is_scraping
-            })
-            
-    except Exception as e:
-        logger.error(f"Failed to get metadata: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/ships/auto-refresh", methods=["POST"])
-def auto_refresh_ships() -> Response:
-    """Check and trigger auto-refresh if needed."""
-    global is_scraping
-    
-    try:
-        if is_scraping:
-            return jsonify({
-                "success": True,
-                "message": "Scraping already in progress",
-                "refreshing": True
-            })
-        
-        max_age = request.json.get("max_age_hours", settings.auto_refresh_max_age_hours) if request.json else settings.auto_refresh_max_age_hours
-        needs_refresh = run_async(storage.needs_refresh(max_age))
-        
-        if needs_refresh:
-            logger.info(f"Data older than {max_age}h, triggering background refresh...")
-            
-            # Start background scrape in separate thread
-            thread = threading.Thread(target=background_scrape_all)
-            thread.daemon = True
-            thread.start()
-            
-            return jsonify({
-                "success": True,
-                "message": "Background refresh triggered",
-                "refreshing": True
-            })
-        else:
-            return jsonify({
-                "success": True,
-                "message": "Data is up-to-date",
-                "refreshing": False
-            })
-            
-    except Exception as e:
-        logger.error(f"Auto-refresh failed: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/scrape/all", methods=["GET"])
-def scrape_all_factions() -> Response:
-    """Scrape all faction ships using MediaWiki API."""
-    try:
-        logger.info("Starting MediaWiki API scrape of all factions")
-        
-        all_ships = []
-        
-        for faction in Faction:
-            logger.info(f"Scraping {faction.value} ships via MediaWiki API")
-            url = Faction.get_wiki_url(faction)
-            
-            ship_titles = run_async(scraper.get_pages_in_category_by_url(url))
-            raw_ships = run_async(scraper.scrape_all_ships(ship_titles))
-            
-            for ship_data in raw_ships:
-                ship_data["Faction"] = faction.value
-            
-            all_ships.extend(raw_ships)
-        
-        ships = ShipTransformer.transform_ships(all_ships)
-        run_async(storage.save_ships(ships))
-        ships_dict = ShipTransformer.ships_to_dict(ships)
-        
-        logger.info(f"MediaWiki API scrape completed: {len(ships)} total ships")
-        
-        return jsonify({
-            "success": True,
-            "total_count": len(ships),
-            "scraper": "MediaWiki API",
-            "by_faction": {
-                faction.value: len([s for s in ships if s.faction == faction.value])
-                for faction in Faction
-            },
-            "ships": ships_dict
-        })
-        
-    except Exception as e:
-        logger.error(f"MediaWiki API scrape failed: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/scrape/<faction_key>", methods=["GET"])
-def scrape_faction(faction_key: str) -> Response:
-    """Scrape ships for a specific faction using MediaWiki API."""
-    try:
-        faction_key_upper = faction_key.upper().replace("-", "_")
-        
-        try:
-            faction = Faction[faction_key_upper]
-        except KeyError:
-            return jsonify({
-                "success": False,
-                "error": f"Invalid faction: {faction_key}",
-                "valid_factions": [f.name.lower() for f in Faction]
-            }), 400
-        
-        logger.info(f"Starting MediaWiki API scrape of {faction.value} ships")
-        
-        url = Faction.get_wiki_url(faction)
-        ship_titles = run_async(scraper.get_pages_in_category_by_url(url))
-        raw_ships = run_async(scraper.scrape_all_ships(ship_titles))
-        
-        for ship_data in raw_ships:
-            ship_data["Faction"] = faction.value
-        
-        ships = ShipTransformer.transform_ships(raw_ships)
-        run_async(storage.save_ships(ships))
-        ships_dict = ShipTransformer.ships_to_dict(ships)
-        
-        logger.info(f"MediaWiki API scrape completed: {len(ships)} {faction.value} ships")
-        
-        return jsonify({
-            "success": True,
-            "faction": faction.value,
-            "count": len(ships),
-            "scraper": "MediaWiki API",
-            "ships": ships_dict
-        })
-        
-    except Exception as e:
-        logger.error(f"MediaWiki API scrape failed: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/ships", methods=["GET"])
+@app.route("/api/ships", methods=["GET"])
 def get_ships() -> Response:
-    """Get ships from storage with optional faction filter."""
+    """
+    Get all ships with optional filtering.
+    
+    Query parameters:
+        faction: Filter by faction (federation, klingon, romulan, dominion, cross-faction)
+        tier: Filter by tier (1-6)
+        type: Filter by ship type (escort, cruiser, science, etc.)
+        limit: Maximum results (default 1000)
+    
+    Returns:
+        JSON response with ship list
+    
+    Examples:
+        GET /api/ships
+        GET /api/ships?faction=dominion
+        GET /api/ships?tier=6&type=escort
+        GET /api/ships?faction=federation&limit=50
+    """
     try:
         faction = request.args.get("faction")
-        ships = run_async(storage.get_ships(faction=faction))
-        ships_dict = ShipTransformer.ships_to_dict(ships)
+        tier = request.args.get("tier", type=int)
+        ship_type = request.args.get("type")
+        limit = request.args.get("limit", 1000, type=int)
+        
+        logger.info(f"GET /api/ships - faction={faction}, tier={tier}, type={ship_type}, limit={limit}")
+        
+        # Query Cargo database
+        raw_ships = cargo.get_all_ships(
+            faction=faction,
+            tier=tier,
+            ship_type=ship_type,
+            limit=limit
+        )
+        
+        # Validate and enrich with Ship model
+        ships = [Ship(**ship) for ship in raw_ships]
+        
+        logger.info(f"Returned {len(ships)} ships")
         
         return jsonify({
             "success": True,
             "count": len(ships),
-            "faction_filter": faction,
-            "ships": ships_dict
+            "filters": {
+                "faction": faction,
+                "tier": tier,
+                "type": ship_type
+            },
+            "ships": [ship.model_dump() for ship in ships]
         })
         
     except Exception as e:
         logger.error(f"Failed to get ships: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
-@app.route("/ships/download", methods=["GET"])
+@app.route("/api/ships/<path:name>", methods=["GET"])
+def get_ship(name: str) -> Response:
+    """
+    Get single ship by exact name.
+    
+    Args:
+        name: Ship name (URL-encoded)
+    
+    Returns:
+        JSON response with ship details or 404
+    
+    Example:
+        GET /api/ships/Jem'Hadar Strike Ship
+    """
+    try:
+        logger.info(f"GET /api/ships/{name}")
+        
+        raw_ship = cargo.get_ship_by_name(name)
+        
+        if not raw_ship:
+            return jsonify({
+                "success": False,
+                "error": f"Ship not found: {name}"
+            }), 404
+        
+        ship = Ship(**raw_ship)
+        
+        return jsonify({
+            "success": True,
+            "ship": ship.model_dump()
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get ship '{name}': {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/ships/search", methods=["GET"])
+def search_ships() -> Response:
+    """
+    Search ships by name (fuzzy match).
+    
+    Query parameters:
+        q: Search query (required)
+        limit: Maximum results (default 100)
+    
+    Returns:
+        JSON response with matching ships
+    
+    Examples:
+        GET /api/ships/search?q=enterprise
+        GET /api/ships/search?q=jem'hadar&limit=20
+    """
+    try:
+        query = request.args.get("q", "")
+        limit = request.args.get("limit", 100, type=int)
+        
+        if not query:
+            return jsonify({
+                "success": False,
+                "error": "Missing query parameter 'q'"
+            }), 400
+        
+        logger.info(f"SEARCH /api/ships/search?q={query}&limit={limit}")
+        
+        raw_results = cargo.search_ships(query, limit=limit)
+        ships = [Ship(**ship) for ship in raw_results]
+        
+        logger.info(f"Found {len(ships)} ships matching '{query}'")
+        
+        return jsonify({
+            "success": True,
+            "query": query,
+            "count": len(ships),
+            "results": [ship.model_dump() for ship in ships]
+        })
+        
+    except Exception as e:
+        logger.error(f"Search failed: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/ships/download", methods=["GET"])
 def download_ships() -> Response:
-    """Download ships data as JSON file."""
+    """
+    Download ships data as JSON file.
+    
+    Query parameters:
+        faction: Optional faction filter
+    
+    Returns:
+        JSON file download
+    
+    Example:
+        GET /api/ships/download
+        GET /api/ships/download?faction=dominion
+    """
     try:
         faction = request.args.get("faction")
-        ships = run_async(storage.get_ships(faction=faction))
-        ships_dict = ShipTransformer.ships_to_dict(ships)
         
-        json_data = json.dumps(ships_dict, indent=2, ensure_ascii=False)
+        logger.info(f"DOWNLOAD /api/ships/download?faction={faction}")
+        
+        raw_ships = cargo.get_all_ships(faction=faction)
+        ships = [Ship(**ship) for ship in raw_ships]
+        
+        json_data = json.dumps(
+            [ship.model_dump() for ship in ships],
+            indent=2,
+            ensure_ascii=False
+        )
+        
         filename = f"{faction.lower()}_ships.json" if faction else "all_ships.json"
+        
+        logger.info(f"Downloaded {len(ships)} ships as {filename}")
         
         return Response(
             json_data,
@@ -368,63 +271,130 @@ def download_ships() -> Response:
         
     except Exception as e:
         logger.error(f"Download failed: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
-@app.route("/ships/count", methods=["GET"])
-def get_ship_count() -> Response:
-    """Get total ship count from storage."""
+@app.route("/api/factions", methods=["GET"])
+def get_factions() -> Response:
+    """
+    Get faction summary with ship counts.
+    
+    Returns:
+        JSON response with faction list and ship counts
+    
+    Example:
+        GET /api/factions
+        
+        Response:
+        {
+            "success": true,
+            "total": 850,
+            "factions": [
+                {"name": "Dominion", "count": 43, "key": "dominion"},
+                {"name": "United Federation of Planets", "count": 287, "key": "federation"},
+                ...
+            ]
+        }
+    """
     try:
-        count = run_async(storage.get_ship_count())
-        return jsonify({"success": True, "count": count})
-    except Exception as e:
-        logger.error(f"Failed to get ship count: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/cache/stats", methods=["GET"])
-def get_cache_stats() -> Response:
-    """Get cache statistics."""
-    try:
-        stats = run_async(scraper.get_cache_stats())
-        return jsonify({"success": True, "cache": stats})
-    except Exception as e:
-        logger.error(f"Failed to get cache stats: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/cache/clear", methods=["POST"])
-def clear_cache() -> Response:
-    """Clear all cached data."""
-    try:
-        count = run_async(scraper.clear_cache())
+        logger.info("GET /api/factions")
+        
+        summary = cargo.get_faction_summary()
+        
+        # Map to user-friendly keys
+        faction_map = {
+            "United Federation of Planets": "federation",
+            "Klingon Empire": "klingon",
+            "Romulan Republic": "romulan",
+            "Dominion": "dominion",
+            "Cross-Faction": "cross-faction"
+        }
+        
+        factions = [
+            {
+                "name": name,
+                "count": count,
+                "key": faction_map.get(name, name.lower().replace(" ", "-"))
+            }
+            for name, count in summary.items()
+        ]
+        
+        total = sum(summary.values())
+        
+        logger.info(f"Returned {len(factions)} factions, {total} total ships")
+        
         return jsonify({
             "success": True,
-            "message": f"Cleared {count} cache files",
-            "files_cleared": count
+            "total": total,
+            "factions": factions
         })
+        
     except Exception as e:
-        logger.error(f"Failed to clear cache: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error(f"Failed to get factions: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/types", methods=["GET"])
+def get_ship_types() -> Response:
+    """
+    Get all unique ship types.
+    
+    Returns:
+        JSON response with ship type list
+    
+    Example:
+        GET /api/types
+        
+        Response:
+        {
+            "success": true,
+            "count": 15,
+            "types": ["Carrier", "Cruiser", "Destroyer", "Escort", ...]
+        }
+    """
+    try:
+        logger.info("GET /api/types")
+        
+        types = cargo.get_ship_types()
+        
+        logger.info(f"Returned {len(types)} ship types")
+        
+        return jsonify({
+            "success": True,
+            "count": len(types),
+            "types": types
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get types: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 @app.errorhandler(404)
 def not_found(error) -> tuple:
     """Handle 404 errors."""
-    return jsonify({"error": "Endpoint not found"}), 404
+    return jsonify({"success": False, "error": "Endpoint not found"}), 404
 
 
 @app.errorhandler(500)
 def internal_error(error) -> tuple:
     """Handle 500 errors."""
     logger.error(f"Internal error: {error}")
-    return jsonify({"error": "Internal server error"}), 500
+    return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":
-    # Initialize database if using DB storage
-    if isinstance(storage, DatabaseStorage):
-        run_async(storage.init_db())
+    logger.info("Starting Cargo API server...")
+    logger.info(f"Data source: {cargo.BASE_URL}")
     
     app.run(
         host=settings.host,
