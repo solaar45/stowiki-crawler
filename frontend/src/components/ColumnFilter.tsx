@@ -101,12 +101,6 @@ export function ColumnFilter<TData>({
   // Toggle filter value
   const toggleValue = (value: string) => {
     const currentFilter = filterValue;
-    // Handle Yes/No conversion back to original values if needed, 
-    // but the filter function in ShipsTable handles string comparison, so passing "Yes"/"No" is fine 
-    // provided the filter function expects it.
-    
-    // For Type column specifically, we need to handle case-insensitivity in the filter function,
-    // so here we just pass the display value.
     
     const newFilter = currentFilter.includes(value)
       ? currentFilter.filter((v) => v !== value)
@@ -151,15 +145,17 @@ export function ColumnFilter<TData>({
     };
   }, [isOpen]);
 
-  // Handle scroll to close dropdown
+  // Handle scroll to close dropdown - only for scrolling OUTSIDE the dropdown
   useEffect(() => {
-    const handleScroll = () => {
-      if (isOpen) setIsOpen(false);
+    const handleScroll = (e: Event) => {
+      // Only close if scroll happened outside the dropdown
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
     };
     
-    // Only add scroll listener to window if open
     if (isOpen) {
-        window.addEventListener('scroll', handleScroll, true); // true for capture phase to catch all scrolls
+        window.addEventListener('scroll', handleScroll, true);
     }
     
     return () => {
