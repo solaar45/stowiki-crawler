@@ -25,6 +25,20 @@ function decodeHtmlEntities(text: string): string {
   return textarea.value;
 }
 
+// Normalize faction names for display
+function normalizeFactionName(faction: string): string {
+  const mapping: Record<string, string> = {
+    "Romulan Republic": "Romulan",
+    "Klingon Empire": "Klingon",
+  };
+  return mapping[faction] || faction;
+}
+
+// Format cost field: decode entities and replace ; with space
+function formatCost(cost: string): string {
+  return decodeHtmlEntities(cost).replace(/;/g, ' ');
+}
+
 export function ShipsTable({ ships }: ShipsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -61,9 +75,10 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         cell: ({ row }) => {
           const faction = row.getValue('factionlede') as string | undefined;
           if (!faction) return <span className="text-gray-400">N/A</span>;
+          const normalizedFaction = normalizeFactionName(faction);
           return (
             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-              {faction}
+              {normalizedFaction}
             </span>
           );
         },
@@ -99,7 +114,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         cell: ({ row }) => {
           const cost = row.getValue('cost') as string | undefined;
           if (!cost) return <span className="text-gray-400">-</span>;
-          return decodeHtmlEntities(cost);
+          return formatCost(cost);
         },
       },
       {
