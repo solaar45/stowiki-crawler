@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, Ship } from './lib/api';
 import { ShipsTable } from './components/ShipsTable';
 import { MetadataDisplay } from './components/MetadataDisplay';
+import { ThemeToggle } from './components/ThemeToggle';
 
 function App() {
   const [selectedFaction, setSelectedFaction] = useState<string | undefined>();
@@ -88,16 +89,21 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            🚀 STO Wiki Crawler
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Star Trek Online Ship Database · MediaWiki API · Auto-Refresh
-          </p>
+        <header className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              🚀 STO Wiki Crawler
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Star Trek Online Ship Database · MediaWiki API · Auto-Refresh
+            </p>
+          </div>
+          
+          {/* Theme Toggle */}
+          <ThemeToggle />
         </header>
 
         {/* Metadata Display */}
@@ -110,7 +116,7 @@ function App() {
             <select
               value={selectedFaction || ''}
               onChange={(e) => setSelectedFaction(e.target.value || undefined)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               disabled={shipsLoading || isRefreshing}
             >
               <option value="">All Factions</option>
