@@ -193,7 +193,37 @@ class CargoShipScraper:
         return ship_names
 
     def parse_ship_page(self, page_title: str) -> Optional[Dict]:
-        """Parse a single ship by querying Cargo for its data."""
+        """Parse a single ship by querying Cargo for its data.
+        
+        If the initial query fails, tries alternative apostrophe variants.
+        """
+        # Try original name first
+        result = self._query_ship_by_name(page_title)
+        if result:
+            return result
+        
+        # If failed, try apostrophe variants
+        if "'" in page_title or "'" in page_title or "&#039;" in page_title:
+            logger.info(f"Trying apostrophe variants for {page_title}")
+            
+            # Generate variants
+            variants = self._generate_apostrophe_variants(page_title)
+            
+            for variant in variants:
+                if variant == page_title:
+                    continue  # Already tried
+                
+                logger.debug(f"Trying variant: {variant}")
+                result = self._query_ship_by_name(variant)
+                if result:
+                    logger.info(f"Found data with variant: {variant}")
+                    return result
+        
+        logger.warning(f"No data found for {page_title} (tried all variants)")
+        return None
+    
+    def _query_ship_by_name(self, page_title: str) -> Optional[Dict]:
+        """Query Cargo for a single ship by exact name."""
         params = {
             "action": "cargoquery",
             "tables": "Ships",
@@ -211,12 +241,43 @@ class CargoShipScraper:
             if "cargoquery" in data and data["cargoquery"]:
                 return self._parse_cargo_result(data["cargoquery"][0]["title"])
 
-            logger.warning(f"No data found for {page_title}")
             return None
 
         except Exception as e:
-            logger.error(f"Error parsing {page_title}: {e}", exc_info=True)
+            logger.error(f"Error querying {page_title}: {e}", exc_info=True)
             return None
+    
+    def _generate_apostrophe_variants(self, text: str) -> List[str]:
+        """Generate all possible apostrophe variants of a string.
+        
+        Tries: ' (straight), ' (curly), &#039; (HTML entity), and removing apostrophe.
+        """
+        variants = set()
+        
+        # All possible apostrophe characters
+        apostrophes = ["'", "'", "&#039;", "`", "ʼ"]
+        
+        # Add original
+        variants.add(text)
+        
+        # Replace all apostrophes with each variant
+        for apo in apostrophes:
+            # Replace straight apostrophe
+            if "'" in text:
+                variants.add(text.replace("'", apo))
+            # Replace curly apostrophe
+            if "'" in text:
+                variants.add(text.replace("'", apo))
+            # Replace HTML entity
+            if "&#039;" in text:
+                variants.add(text.replace("&#039;", apo))
+        
+        # Also try without apostrophe (for cases like "Jem'Hadar" -> "JemHadar")
+        for apo in ["'", "'", "&#039;"]:
+            if apo in text:
+                variants.add(text.replace(apo, ""))
+        
+        return list(variants)
 
     def _get_field_list(self) -> str:
         """Get list of fields to query from Cargo.
