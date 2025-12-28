@@ -1,7 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { ShipsTable } from '../components/ShipsTable';
+
+// Normalize faction names for display
+function normalizeFactionName(faction: string): string {
+  const mapping: Record<string, string> = {
+    "Romulan Republic": "Romulan",
+    "Klingon Empire": "Klingon",
+  };
+  return mapping[faction] || faction;
+}
 
 export function HomePage() {
   const [selectedFaction, setSelectedFaction] = useState<string | undefined>();
@@ -27,8 +36,17 @@ export function HomePage() {
     queryFn: () => api.getFactions(),
   });
 
+  // Normalize faction names
+  const normalizedFactions = useMemo(() => {
+    if (!factions) return [];
+    return factions.map(f => ({
+      ...f,
+      name: normalizeFactionName(f.name)
+    }));
+  }, [factions]);
+
   // Calculate total count from factions
-  const totalShips = factions?.reduce((sum, f) => sum + f.count, 0) || 0;
+  const totalShips = normalizedFactions?.reduce((sum, f) => sum + f.count, 0) || 0;
   
   // Get current ship count (from loaded ships or total)
   const currentCount = ships?.length || 0;
@@ -46,9 +64,9 @@ export function HomePage() {
       </header>
 
       {/* Faction Stats Cards */}
-      {factions && (
+      {normalizedFactions && normalizedFactions.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {factions.map((faction) => (
+          {normalizedFactions.map((faction) => (
             <div
               key={faction.key}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-2 border-transparent hover:border-blue-500 transition-colors cursor-pointer"
@@ -81,7 +99,7 @@ export function HomePage() {
             disabled={shipsLoading}
           >
             <option value="">All Factions</option>
-            {factions?.map((faction) => (
+            {normalizedFactions?.map((faction) => (
               <option key={faction.key} value={faction.key}>
                 {faction.name} ({faction.count})
               </option>
@@ -157,7 +175,7 @@ export function HomePage() {
         <>
           <div className="mb-4 text-gray-600 dark:text-gray-400">
             Showing {currentCount} ships
-            {selectedFaction && ` from ${factions?.find(f => f.key === selectedFaction)?.name}`}
+            {selectedFaction && ` from ${normalizedFactions?.find(f => f.key === selectedFaction)?.name}`}
             {selectedTier && ` (Tier ${selectedTier})`}
           </div>
           <ShipsTable ships={ships} />
