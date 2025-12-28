@@ -33,6 +33,9 @@ export function HomePage() {
 
   // Calculate total count from factions
   const totalShips = factions?.reduce((sum, f) => sum + f.count, 0) || 0;
+  
+  // Get current ship count (from loaded ships or total)
+  const currentCount = ships?.length || 0;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -167,7 +170,7 @@ export function HomePage() {
       {!shipsLoading && ships && ships.length > 0 && (
         <>
           <div className="mb-4 text-gray-600 dark:text-gray-400">
-            Showing {ships.length} ships
+            Showing {currentCount} ships
             {selectedFaction && ` from ${factions?.find(f => f.key === selectedFaction)?.name}`}
             {selectedTier && ` (Tier ${selectedTier})`}
           </div>
