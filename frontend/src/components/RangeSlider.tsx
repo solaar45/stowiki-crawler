@@ -63,11 +63,13 @@ export function RangeSlider<TData>({
   const [localMin, setLocalMin] = useState(filterValue[0]);
   const [localMax, setLocalMax] = useState(filterValue[1]);
 
-  // Update local state when filter changes
+  // Update local state when filter changes or when opening
   useEffect(() => {
-    setLocalMin(filterValue[0]);
-    setLocalMax(filterValue[1]);
-  }, [filterValue]);
+    if (isOpen) {
+      setLocalMin(filterValue[0]);
+      setLocalMax(filterValue[1]);
+    }
+  }, [isOpen, filterValue]);
 
   // Apply filter
   const applyFilter = () => {
@@ -139,9 +141,12 @@ export function RangeSlider<TData>({
       {/* Filter Button */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
         className={cn(
-          'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors',
+          'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative',
           hasActiveFilter && 'text-blue-600 dark:text-blue-400'
         )}
         title={`Filter ${title}`}
@@ -158,16 +163,22 @@ export function RangeSlider<TData>({
           ref={dropdownRef}
           style={{ 
             top: position.top, 
-            left: position.left, 
+            left: position.left,
+            pointerEvents: 'auto',
           }}
           className="fixed w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[9999]"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="p-4">
             {/* Title */}
             <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex justify-between items-center">
               <span>Filter by {title}</span>
               <button 
-                onClick={() => setIsOpen(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="h-4 w-4" />
@@ -191,13 +202,19 @@ export function RangeSlider<TData>({
                   type="range"
                   min={minValue}
                   max={maxValue}
-                  step={(maxValue - minValue) / 100}
+                  step={Math.max((maxValue - minValue) / 100, 0.01)}
                   value={localMin}
                   onChange={(e) => {
+                    e.stopPropagation();
                     const value = Number(e.target.value);
                     setLocalMin(Math.min(value, localMax));
                   }}
-                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    accentColor: '#2563eb',
+                  }}
                 />
               </div>
 
@@ -210,13 +227,19 @@ export function RangeSlider<TData>({
                   type="range"
                   min={minValue}
                   max={maxValue}
-                  step={(maxValue - minValue) / 100}
+                  step={Math.max((maxValue - minValue) / 100, 0.01)}
                   value={localMax}
                   onChange={(e) => {
+                    e.stopPropagation();
                     const value = Number(e.target.value);
                     setLocalMax(Math.max(value, localMin));
                   }}
-                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    accentColor: '#2563eb',
+                  }}
                 />
               </div>
             </div>
@@ -233,6 +256,8 @@ export function RangeSlider<TData>({
                       setLocalMin(Math.max(minValue, Math.min(value, localMax)));
                     }
                   }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -246,6 +271,8 @@ export function RangeSlider<TData>({
                       setLocalMax(Math.min(maxValue, Math.max(value, localMin)));
                     }
                   }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -254,13 +281,19 @@ export function RangeSlider<TData>({
             {/* Actions */}
             <div className="flex gap-2">
               <button
-                onClick={applyFilter}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  applyFilter();
+                }}
                 className="flex-1 px-3 py-1.5 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors"
               >
                 Apply
               </button>
               <button
-                onClick={resetFilter}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  resetFilter();
+                }}
                 className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
               >
                 Reset
