@@ -49,10 +49,10 @@ class ShipTransformer:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid date format: {raw_data.get('Released')}")
             
-            # Create Ship instance
+            # Create Ship instance - use uppercase fields from scraper
             ship = Ship(
-                name=raw_data.get("name", "Unknown"),
-                link=raw_data["link"],
+                name=raw_data.get("Ship", "Unknown"),  # Changed from "name" to "Ship"
+                link=raw_data["Link"],  # Changed from "link" to "Link"
                 tier=raw_data.get("Tier"),
                 faction=raw_data.get("Faction"),
                 type=raw_data.get("Type"),
