@@ -28,8 +28,8 @@ function decodeHtmlEntities(text: string): string {
 // Normalize faction names for display
 function normalizeFactionName(faction: string): string {
   const mapping: Record<string, string> = {
-    "Romulan Republic": "Romulan",
-    "Klingon Empire": "Klingon",
+    'Romulan Republic': 'Romulan',
+    'Klingon Empire': 'Klingon',
   };
   return mapping[faction] || faction;
 }
@@ -117,6 +117,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           return formatCost(cost);
         },
       },
+
+      // Defense
       {
         accessorKey: 'hull',
         header: ({ column }) => (
@@ -149,6 +151,24 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           return mod ? mod.toFixed(2) : <span className="text-gray-400">-</span>;
         },
       },
+
+      // Weapons
+      {
+        accessorKey: 'can_use_cannons',
+        header: 'DHC',
+        cell: ({ row }) => {
+          const canEquip = row.getValue('can_use_cannons') as boolean;
+          return (
+            <div className="flex justify-center">
+              {canEquip ? (
+                <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+              ) : (
+                <X className="h-5 w-5 text-red-600 dark:text-red-400" />
+              )}
+            </div>
+          );
+        },
+      },
       {
         accessorKey: 'fore',
         header: 'Fore',
@@ -165,25 +185,11 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           return aft ? aft : <span className="text-gray-400">-</span>;
         },
       },
-      {
-        accessorKey: 'can_use_cannons',
-        header: 'Dual Cannons',
-        cell: ({ row }) => {
-          const canEquip = row.getValue('can_use_cannons') as boolean;
-          return (
-            <div className="flex justify-center">
-              {canEquip ? (
-                <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
-              ) : (
-                <X className="h-5 w-5 text-red-600 dark:text-red-400" />
-              )}
-            </div>
-          );
-        },
-      },
+
+      // Mobility
       {
         accessorKey: 'turnrate',
-        header: 'Turn Rate',
+        header: 'Turn',
         cell: ({ row }) => {
           const rate = row.getValue('turnrate') as number | undefined;
           return rate ? rate.toFixed(1) : <span className="text-gray-400">-</span>;
@@ -191,7 +197,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'impulse',
-        header: 'Impulse',
+        header: 'Imp',
         cell: ({ row }) => {
           const impulse = row.getValue('impulse') as number | undefined;
           return impulse ? impulse.toFixed(2) : <span className="text-gray-400">-</span>;
@@ -199,12 +205,14 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'inertia',
-        header: 'Inertia',
+        header: 'Inrt',
         cell: ({ row }) => {
           const inertia = row.getValue('inertia') as number | undefined;
           return inertia ? inertia : <span className="text-gray-400">-</span>;
         },
       },
+
+      // Consoles
       {
         accessorKey: 'consolestac',
         header: 'TAC',
@@ -229,6 +237,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           return sci || <span className="text-gray-400">-</span>;
         },
       },
+
       {
         accessorKey: 'boffs',
         header: 'Bridge Officers',
@@ -255,9 +264,11 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           );
         },
       },
+
+      // Admiralty
       {
         accessorKey: 'admiraltyeng',
-        header: 'Admiralty ENG',
+        header: 'Eng',
         cell: ({ row }) => {
           const eng = row.getValue('admiraltyeng') as number | undefined;
           return eng || <span className="text-gray-400">-</span>;
@@ -265,7 +276,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'admiraltytac',
-        header: 'Admiralty TAC',
+        header: 'Tac',
         cell: ({ row }) => {
           const tac = row.getValue('admiraltytac') as number | undefined;
           return tac || <span className="text-gray-400">-</span>;
@@ -273,19 +284,20 @@ export function ShipsTable({ ships }: ShipsTableProps) {
       },
       {
         accessorKey: 'admiraltysci',
-        header: 'Admiralty SCI',
+        header: 'Sci',
         cell: ({ row }) => {
           const sci = row.getValue('admiraltysci') as number | undefined;
           return sci || <span className="text-gray-400">-</span>;
         },
       },
+
       {
         accessorKey: 'has_hangar',
         header: 'Hangar',
         cell: ({ row }) => {
           const hasHangar = row.getValue('has_hangar') as boolean;
           const hangars = row.original.hangars || 0;
-          
+
           return (
             <div className="flex justify-center">
               {hasHangar ? (
@@ -343,22 +355,55 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
+              {/* Group header row */}
+              <tr>
+                {/* Sticky first column placeholder to keep alignment with Ship Name */}
+                <th
+                  colSpan={1}
+                  className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 dark:bg-gray-900"
+                />
+
+                {/* Ungrouped info columns: Faction, Tier, Type, Cost */}
+                <th colSpan={4} className="px-4 py-2" />
+
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Defense
+                </th>
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Weapons
+                </th>
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Mobility
+                </th>
+
+                {/* Consoles group not requested - keep empty */}
+                <th colSpan={3} className="px-4 py-2" />
+
+                {/* Bridge Officers + Abilities not requested - keep empty */}
+                <th colSpan={2} className="px-4 py-2" />
+
+                <th colSpan={3} className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Admiralty
+                </th>
+
+                {/* Hangar */}
+                <th colSpan={1} className="px-4 py-2" />
+              </tr>
+
+              {/* Column header row */}
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header, index) => (
                     <th
                       key={header.id}
                       className={cn(
-                        "px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap",
-                        index === 0 && "sticky left-0 z-10 bg-gray-50 dark:bg-gray-900"
+                        'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap',
+                        index === 0 && 'sticky left-0 z-10 bg-gray-50 dark:bg-gray-900'
                       )}
                     >
                       {header.isPlaceholder
                         ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </th>
                   ))}
                 </tr>
@@ -374,14 +419,11 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                     <td
                       key={cell.id}
                       className={cn(
-                        "px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap",
-                        index === 0 && "sticky left-0 z-10 bg-white dark:bg-gray-950"
+                        'px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
+                        index === 0 && 'sticky left-0 z-10 bg-white dark:bg-gray-950'
                       )}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>
