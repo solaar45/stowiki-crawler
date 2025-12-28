@@ -86,16 +86,17 @@ def get_ships():
     Query params:
     - faction: Filter by faction key (federation, klingon, etc.)
     - tier: Filter by tier (1-6)
-    - limit: Max results (default 500)
+    - limit: Max results (optional, no default)
     """
     start_time = datetime.now()
     
     faction = request.args.get('faction')
     tier = request.args.get('tier', type=int)
-    limit = request.args.get('limit', 500, type=int)
+    limit = request.args.get('limit', type=int)  # No default - load all if not specified
     
-    # Limit max results
-    limit = min(limit, 1000)
+    # Cap limit at 2000 if specified
+    if limit:
+        limit = min(limit, 2000)
     
     try:
         ships = db.get_ships(faction=faction, tier=tier, limit=limit)
@@ -163,7 +164,7 @@ def search_ships():
     
     try:
         # Get all ships and filter by name
-        all_ships = db.get_ships(limit=1000)
+        all_ships = db.get_ships()
         
         # Case-insensitive search
         query_lower = query.lower()
@@ -193,7 +194,7 @@ def download_ships():
     faction = request.args.get('faction')
     
     try:
-        ships = db.get_ships(faction=faction, limit=1000)
+        ships = db.get_ships(faction=faction)
         
         # Create JSON file in memory
         json_data = json.dumps(ships, indent=2)
