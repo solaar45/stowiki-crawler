@@ -45,59 +45,14 @@ export function ColumnFilter<TData>({
     }
   }, [isOpen]);
 
-  // Get unique values from the column WITH DYNAMIC FILTERING
-  // This uses getFilteredRowModel() which applies all OTHER column filters,
-  // showing only values that exist in the currently filtered dataset
+  // Get unique values from the column
+  // getFacetedUniqueValues() already respects OTHER active filters (not including this column's filter)
+  // This gives us dynamic filtering automatically!
   const uniqueValues = useMemo(() => {
-    // Get all currently filtered rows (excludes current column's filter)
-    const table = column.getTable();
-    const allRows = table.getCoreRowModel().rows;
-    const currentColumnId = column.id;
-    
-    // Get all active filters except the current column
-    const otherFilters = table.getState().columnFilters.filter(
-      (filter) => filter.id !== currentColumnId
-    );
-    
-    // Apply all filters except the current column to get the base filtered rows
-    let filteredRows = allRows;
-    
-    // Manually apply other column filters
-    otherFilters.forEach((filter) => {
-      const filterColumn = table.getColumn(filter.id);
-      if (filterColumn) {
-        const filterFn = filterColumn.columnDef.filterFn;
-        if (filterFn && typeof filterFn === 'function') {
-          filteredRows = filteredRows.filter((row) =>
-            filterFn(row, filter.id, filter.value, (id) => {
-              const col = table.getColumn(id);
-              return col;
-            })
-          );
-        }
-      }
-    });
-    
-    // Also apply global filter if present
-    const globalFilter = table.getState().globalFilter;
-    if (globalFilter) {
-      const globalFilterFn = table.options.globalFilterFn;
-      if (globalFilterFn) {
-        filteredRows = filteredRows.filter((row) =>
-          globalFilterFn(row, currentColumnId, globalFilter, (id) => {
-            const col = table.getColumn(id);
-            return col;
-          })
-        );
-      }
-    }
-    
-    // Now count unique values from the filtered rows
+    const facetedValues = column.getFacetedUniqueValues();
     const valuesMap = new Map<string, number>();
 
-    filteredRows.forEach((row) => {
-      const value = row.getValue(currentColumnId);
-      
+    facetedValues.forEach((count, value) => {
       // Handle special cases
       let displayValue = String(value);
       
@@ -116,11 +71,12 @@ export function ColumnFilter<TData>({
          }
       }
 
-      // Normalize string values to handle case differences
+      // Normalize string values to handle case differences (e.g. BATTLECRUISER vs Battlecruiser)
+      // But keep the first encountered casing as the display key
       const normalizedKey = displayValue.trim();
       
       const currentCount = valuesMap.get(normalizedKey) || 0;
-      valuesMap.set(normalizedKey, currentCount + 1);
+      valuesMap.set(normalizedKey, currentCount + count);
     });
 
     const values = Array.from(valuesMap.entries()).map(([value, count]) => ({
@@ -288,6 +244,8 @@ export function ColumnFilter<TData>({
               <div className="space-y-0.5">
                 {filteredValues.map((item) => {
                   const isChecked = filterValue.includes(item.value);
+                  // Don't disable items with count 0 if they are already selected
+                  // (they might be selected but filtered out by other filters)
                   const isDisabled = item.count === 0 && !isChecked;
                   
                   return (
