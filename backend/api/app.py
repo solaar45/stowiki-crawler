@@ -80,10 +80,10 @@ def background_scrape_all():
         all_ships = []
         for faction in Faction:
             logger.info(f"Background scraping {faction.value} ships...")
-            category = Faction.get_category_name(faction)
+            url = Faction.get_wiki_url(faction)
             
             ship_titles = loop.run_until_complete(
-                scraper.get_category_members(category)
+                scraper.get_pages_in_category_by_url(url)
             )
             raw_ships = loop.run_until_complete(
                 scraper.scrape_all_ships(ship_titles)
@@ -254,9 +254,9 @@ def scrape_all_factions() -> Response:
         
         for faction in Faction:
             logger.info(f"Scraping {faction.value} ships via MediaWiki API")
-            category = Faction.get_category_name(faction)
+            url = Faction.get_wiki_url(faction)
             
-            ship_titles = run_async(scraper.get_category_members(category))
+            ship_titles = run_async(scraper.get_pages_in_category_by_url(url))
             raw_ships = run_async(scraper.scrape_all_ships(ship_titles))
             
             for ship_data in raw_ships:
@@ -303,8 +303,8 @@ def scrape_faction(faction_key: str) -> Response:
         
         logger.info(f"Starting MediaWiki API scrape of {faction.value} ships")
         
-        category = Faction.get_category_name(faction)
-        ship_titles = run_async(scraper.get_category_members(category))
+        url = Faction.get_wiki_url(faction)
+        ship_titles = run_async(scraper.get_pages_in_category_by_url(url))
         raw_ships = run_async(scraper.scrape_all_ships(ship_titles))
         
         for ship_data in raw_ships:
