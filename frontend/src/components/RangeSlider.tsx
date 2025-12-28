@@ -1,16 +1,18 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Filter, X } from 'lucide-react';
-import { Column } from '@tanstack/react-table';
+import { Column, Table } from '@tanstack/react-table';
 import { cn } from '../lib/utils';
 import { createPortal } from 'react-dom';
 
 interface RangeSliderProps<TData> {
   column: Column<TData, unknown>;
+  table: Table<TData>;
   title: string;
 }
 
 export function RangeSlider<TData>({
   column,
+  table,
   title,
 }: RangeSliderProps<TData>) {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,18 +20,68 @@ export function RangeSlider<TData>({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Get min and max values from the FILTERED dataset (dynamic filtering)
+  // Get min and max values by MANUALLY filtering rows, excluding this column's filter
   const [minValue, maxValue, hasData] = useMemo(() => {
-    // getFacetedMinMaxValues() already respects other active filters!
-    const facetedValues = column.getFacetedMinMaxValues();
+    const currentColumnId = column.id;
+    const allRows = table.getCoreRowModel().rows;
     
-    if (facetedValues && facetedValues[0] !== undefined && facetedValues[1] !== undefined) {
-      return [facetedValues[0], facetedValues[1], true];
+    // Get all filters except the current column
+    const otherFilters = table.getState().columnFilters.filter(
+      (f) => f.id !== currentColumnId
+    );
+    
+    // Apply all OTHER filters (not this column's filter)
+    let filteredRows = allRows;
+    
+    // Apply column filters
+    otherFilters.forEach((filter) => {
+      const filterColumn = table.getColumn(filter.id);
+      if (filterColumn) {
+        const filterFn = filterColumn.columnDef.filterFn;
+        if (filterFn && typeof filterFn === 'function') {
+          filteredRows = filteredRows.filter((row) =>
+            filterFn(row, filter.id, filter.value, (id) => table.getColumn(id))
+          );
+        }
+      }
+    });
+    
+    // Apply global filter
+    const globalFilter = table.getState().globalFilter;
+    if (globalFilter && globalFilter.trim()) {
+      const globalFilterFn = table.options.globalFilterFn;
+      if (globalFilterFn) {
+        filteredRows = filteredRows.filter((row) =>
+          globalFilterFn(row, currentColumnId, globalFilter, (id) => table.getColumn(id))
+        );
+      } else {
+        // Fallback: simple string search across all columns
+        filteredRows = filteredRows.filter((row) => {
+          return Object.values(row.original as object).some((value) =>
+            String(value).toLowerCase().includes(globalFilter.toLowerCase())
+          );
+        });
+      }
     }
     
-    // No data available in filtered results
-    return [0, 100, false];
-  }, [column]);
+    // Calculate min/max from filtered rows
+    const values: number[] = [];
+    filteredRows.forEach((row) => {
+      const value = row.getValue(currentColumnId) as number | undefined;
+      if (value !== null && value !== undefined && !isNaN(value)) {
+        values.push(value);
+      }
+    });
+    
+    if (values.length === 0) {
+      return [0, 100, false];
+    }
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    return [min, max, true];
+  }, [column, table]);
 
   // Get current filter value
   const filterValue = (column.getFilterValue() as [number, number]) || [
@@ -42,13 +94,11 @@ export function RangeSlider<TData>({
   const [localMin, setLocalMin] = useState(filterValue[0]);
   const [localMax, setLocalMax] = useState(filterValue[1]);
 
-  // Update local state when min/max values change (due to other filters)
+  // Update local state when min/max values change
   useEffect(() => {
-    if (isOpen) {
-      // When opening, reset local values to current filter or available range
+    if (isOpen && hasData) {
       const currentFilter = column.getFilterValue() as [number, number] | undefined;
       if (currentFilter) {
-        // Clamp existing filter to new available range
         setLocalMin(Math.max(currentFilter[0], minValue));
         setLocalMax(Math.min(currentFilter[1], maxValue));
       } else {
@@ -56,7 +106,7 @@ export function RangeSlider<TData>({
         setLocalMax(maxValue);
       }
     }
-  }, [isOpen, minValue, maxValue]);
+  }, [isOpen, minValue, maxValue, hasData]);
 
   // Update position when opening
   useEffect(() => {
@@ -119,7 +169,7 @@ export function RangeSlider<TData>({
     };
   }, [isOpen]);
 
-  // Handle scroll to close dropdown - only for scrolling OUTSIDE the dropdown
+  // Handle scroll to close dropdown
   useEffect(() => {
     const handleScroll = (e: Event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
