@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Filter, X } from 'lucide-react';
 import { Column } from '@tanstack/react-table';
 import { cn } from '../lib/utils';
+import { createPortal } from 'react-dom';
 
 interface RangeSliderProps<TData> {
   column: Column<TData, unknown>;
@@ -13,7 +14,34 @@ export function RangeSlider<TData>({
   title,
 }: RangeSliderProps<TData>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY;
+      const scrollX = window.scrollX;
+      
+      // Calculate position
+      let left = rect.left + scrollX;
+      
+      // Check if dropdown would go off-screen to the right (assuming ~288px width for w-72)
+      if (left + 288 > window.innerWidth) {
+        left = (rect.right + scrollX) - 288;
+      }
+      
+      // Ensure it doesn't go off-screen to the left
+      if (left < 10) left = 10;
+
+      setPosition({
+        top: rect.bottom + scrollY + 4,
+        left: left,
+      });
+    }
+  }, [isOpen]);
 
   // Get min and max values from the column
   const [minValue, maxValue] = useMemo(() => {
@@ -61,7 +89,12 @@ export function RangeSlider<TData>({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -75,6 +108,22 @@ export function RangeSlider<TData>({
     };
   }, [isOpen]);
 
+    // Handle scroll to close dropdown
+  useEffect(() => {
+    const handleScroll = () => {
+      if (isOpen) setIsOpen(false);
+    };
+    
+    // Only add scroll listener to window if open
+    if (isOpen) {
+        window.addEventListener('scroll', handleScroll, true);
+    }
+    
+    return () => {
+        window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
+
   // Format number for display
   const formatNumber = (num: number) => {
     if (num >= 1000) {
@@ -84,9 +133,10 @@ export function RangeSlider<TData>({
   };
 
   return (
-    <div className="relative inline-block" ref={dropdownRef}>
+    <>
       {/* Filter Button */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors',
@@ -100,13 +150,26 @@ export function RangeSlider<TData>({
         )}
       </button>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+      {/* Dropdown Portal */}
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={{ 
+            top: position.top, 
+            left: position.left, 
+          }}
+          className="fixed w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[9999]"
+        >
           <div className="p-4">
             {/* Title */}
-            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Filter by {title}
+            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex justify-between items-center">
+              <span>Filter by {title}</span>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Range Display */}
@@ -202,8 +265,9 @@ export function RangeSlider<TData>({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
