@@ -12,7 +12,7 @@ import {
   type FilterFn,
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, Check, X, ExternalLink } from 'lucide-react';
+import { ArrowUpDown, Check, X, ExternalLink, FilterX } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Ship } from '../lib/api';
 import { ColumnFilter } from './ColumnFilter';
@@ -656,10 +656,24 @@ export function ShipsTable({ ships }: ShipsTableProps) {
     getFilteredRowModel: getFilteredRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues(),
+    initialState: {
+      pagination: {
+        pageSize: Number.MAX_SAFE_INTEGER, // Show all rows
+      },
+    },
   });
 
   // Count BOFF sub-columns per BOFF slot (3 per slot)
   const totalBoffColumns = maxBoffSlots * 3;
+
+  // Check if any filters are active
+  const hasActiveFilters = columnFilters.length > 0 || globalFilter !== '';
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setColumnFilters([]);
+    setGlobalFilter('');
+  };
 
   return (
     <div className="space-y-4">
@@ -668,9 +682,9 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         Showing {table.getFilteredRowModel().rows.length} of {ships.length} ships
       </div>
 
-      {/* Search */}
+      {/* Search and Clear Filters */}
       <div className="flex items-center gap-4">
-        <div className="relative w-full max-w-md">
+        <div className="relative flex-1 max-w-md">
           <input
             type="text"
             value={globalFilter ?? ''}
@@ -688,6 +702,17 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </button>
           )}
         </div>
+
+        {/* Clear All Filters Button */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearAllFilters}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
+          >
+            <FilterX className="h-4 w-4" />
+            Clear All Filters
+          </button>
+        )}
       </div>
 
       {/* Table */}
