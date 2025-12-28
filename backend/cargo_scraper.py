@@ -1,12 +1,8 @@
 """
-Cargo Scraper - Hybrid approach for STOWiki ship data
+Cargo Scraper - Improved template parsing approach
 
-Since STOWiki's Cargo API is not publicly accessible, we use a hybrid approach:
-1. Get ship lists from category pages
-2. Parse individual ship pages for structured data
-3. Extract Cargo data from rendered infoboxes
-
-This is still 5x faster than full HTML scraping because we use the MediaWiki API.
+Uses MediaWiki API to get wikitext and parses Template:Shiptypeinfo directly.
+This is much more reliable than HTML regex parsing.
 """
 from typing import List, Dict, Optional
 import httpx
@@ -19,15 +15,14 @@ logger = logging.getLogger(__name__)
 
 class CargoScraper:
     """
-    Hybrid scraper that uses MediaWiki API to extract Cargo data
+    Scraper that parses ship templates from wikitext
     
     Approach:
     1. Use MediaWiki API to get category members (ship list)
-    2. Use action=parse to get rendered HTML with Cargo data
-    3. Parse the infobox data from the HTML
+    2. Get wikitext source with action=parse&prop=wikitext
+    3. Parse Template:Shiptypeinfo parameters
     
-    This works because the Template:Shiptypeinfo stores data to Cargo,
-    and we can extract it from the rendered page.
+    This is more reliable than HTML parsing!
     """
     
     BASE_URL = "https://stowiki.net/w/api.php"
@@ -46,11 +41,11 @@ class CargoScraper:
             timeout=timeout,
             follow_redirects=True,
             headers={
-                "User-Agent": "STOWiki-Crawler/3.0 (Hybrid Cargo Scraper)",
+                "User-Agent": "STOWiki-Crawler/3.0 (Wikitext Parser)",
                 "Accept": "application/json"
             }
         )
-        logger.info("CargoScraper initialized (hybrid mode)")
+        logger.info("CargoScraper initialized (wikitext mode)")
     
     def get_category_members(self, category: str, limit: int = 500) -> List[str]:
         """
@@ -103,7 +98,7 @@ class CargoScraper:
     
     def parse_ship_page(self, page_title: str) -> Optional[Dict]:
         """
-        Parse a ship page and extract structured data from infobox
+        Parse a ship page and extract data from Template:Shiptypeinfo
         
         Args:
             page_title: Ship page title
@@ -112,9 +107,11 @@ class CargoScraper:
             Dictionary with ship data or None if parsing fails
         """
         params = {
-            "action": "parse",
-            "page": page_title,
-            "prop": "text|displaytitle",
+            "action": "query",
+            "titles": page_title,
+            "prop": "revisions",
+            "rvprop": "content",
+            "rvslots": "main",
             "format": "json"
         }
         
@@ -127,11 +124,22 @@ class CargoScraper:
                 logger.warning(f"Failed to parse {page_title}: {data['error'].get('info', 'Unknown')}")
                 return None
             
-            # Extract HTML
-            html = data.get("parse", {}).get("text", {}).get("*", "")
+            # Extract wikitext
+            pages = data.get("query", {}).get("pages", {})
+            page_data = next(iter(pages.values()))
             
-            # Parse infobox data from HTML
-            ship_data = self._extract_infobox_data(html, page_title)
+            if "missing" in page_data:
+                logger.warning(f"Page not found: {page_title}")
+                return None
+            
+            revisions = page_data.get("revisions", [])
+            if not revisions:
+                return None
+            
+            wikitext = revisions[0].get("slots", {}).get("main", {}).get("*", "")
+            
+            # Parse template parameters
+            ship_data = self._parse_template(wikitext, page_title)
             
             return ship_data
             
@@ -139,74 +147,121 @@ class CargoScraper:
             logger.error(f"Failed to parse {page_title}: {e}")
             return None
     
-    def _extract_infobox_data(self, html: str, page_title: str) -> Dict:
+    def _parse_template(self, wikitext: str, page_title: str) -> Dict:
         """
-        Extract ship data from infobox HTML
+        Extract ship data from Template:Shiptypeinfo in wikitext
         
-        This parses the rendered infobox which contains all Cargo data.
+        This parses parameters like:
+        {{Shiptypeinfo
+        |tier=6
+        |type=Destroyer
+        |hull=46000
+        |fore=5
+        |aft=2
+        ...
+        }}
         """
         ship_data = {
             "name": page_title,
-            "wiki_url": f"https://stowiki.net/wiki/{quote(page_title.replace(' ', '_'))}"
+            "wiki_url": f"https://stowiki.net/wiki/{quote(page_title.replace(' ', '_'))}",
+            "faction": [],
+            "type": []
         }
         
-        # Extract tier
-        tier_match = re.search(r'<div class="label">.*?Tier:.*?</div>.*?<div class="entry">(\d+)</div>', html, re.DOTALL)
-        if tier_match:
-            ship_data["tier"] = int(tier_match.group(1))
-        
-        # Extract type
-        type_match = re.search(r'<div class="label">.*?Type:.*?</div>.*?<div class="entry">(.*?)</div>', html, re.DOTALL)
-        if type_match:
-            types_html = type_match.group(1)
-            # Remove HTML tags
-            types_text = re.sub(r'<[^>]+>', '', types_html)
-            ship_data["type"] = [t.strip() for t in types_text.split('/') if t.strip()]
-        
-        # Extract hull
-        hull_match = re.search(r'<div class="label">.*?Hull:.*?</div>.*?<div class="entry">.*?(\d[\d,]+)', html, re.DOTALL)
-        if hull_match:
-            hull_str = hull_match.group(1).replace(',', '')
-            ship_data["hull"] = int(hull_str)
-        
-        # Extract weapons
-        weapons_match = re.search(r'<div class="label">.*?Weapons:.*?</div>.*?<div class="entry">.*?(\d+).*?(\d+)', html, re.DOTALL)
-        if weapons_match:
-            ship_data["fore"] = int(weapons_match.group(1))
-            ship_data["aft"] = int(weapons_match.group(2))
-        
-        # Extract consoles
-        console_match = re.search(
-            r'<div class="label">.*?Consoles:.*?</div>.*?<div class="entry">.*?'  
-            r'(\d+).*?(\d+).*?(\d+)',
-            html,
-            re.DOTALL
+        # Find Template:Shiptypeinfo
+        template_match = re.search(
+            r'\{\{Shiptypeinfo([^}]+)\}\}',
+            wikitext,
+            re.DOTALL | re.IGNORECASE
         )
-        if console_match:
-            ship_data["consolestac"] = int(console_match.group(1))
-            ship_data["consoleseng"] = int(console_match.group(2))
-            ship_data["consolessci"] = int(console_match.group(3))
         
-        # Extract admiralty stats
-        admiralty_match = re.search(
-            r'<div class="label">.*?Admiralty Stats:.*?</div>.*?<div class="entry">.*?'
-            r'(\d+).*?(\d+).*?(\d+)',
-            html,
-            re.DOTALL
-        )
-        if admiralty_match:
-            ship_data["admiraltyeng"] = int(admiralty_match.group(1))
-            ship_data["admiraltytac"] = int(admiralty_match.group(2))
-            ship_data["admiraltysci"] = int(admiralty_match.group(3))
+        if not template_match:
+            logger.warning(f"No Shiptypeinfo template found for {page_title}")
+            return ship_data
         
-        # Check for cannon capability
-        ship_data["equipcannons"] = "yes" if "Can Load Dual Cannons" in html else "no"
-        ship_data["can_use_cannons"] = ship_data["equipcannons"] == "yes"
+        template_content = template_match.group(1)
         
-        # Extract hangar bays
-        hangar_match = re.search(r'<div class="label">.*?Hangar Bays:.*?</div>.*?<div class="entry">(\d+)</div>', html, re.DOTALL)
-        if hangar_match:
-            ship_data["hangars"] = int(hangar_match.group(1))
+        # Parse parameters
+        def get_param(name: str, default=None):
+            pattern = rf'\|\s*{re.escape(name)}\s*=\s*([^|\n]+)'
+            match = re.search(pattern, template_content, re.IGNORECASE)
+            if match:
+                value = match.group(1).strip()
+                # Remove HTML comments
+                value = re.sub(r'<!--.*?-->', '', value)
+                return value if value else default
+            return default
+        
+        def get_int(name: str, default=None) -> Optional[int]:
+            value = get_param(name)
+            if value:
+                try:
+                    # Remove commas and extract first number
+                    clean_value = re.sub(r'[^0-9]', '', value)
+                    if clean_value:
+                        return int(clean_value)
+                except ValueError:
+                    pass
+            return default
+        
+        def get_float(name: str, default=None) -> Optional[float]:
+            value = get_param(name)
+            if value:
+                try:
+                    # Extract float (with decimal point)
+                    match = re.search(r'([0-9]+\.?[0-9]*)', value)
+                    if match:
+                        return float(match.group(1))
+                except ValueError:
+                    pass
+            return default
+        
+        # Extract all fields
+        ship_data["tier"] = get_int("tier")
+        ship_data["hull"] = get_int("hull")
+        ship_data["hullmod"] = get_float("hullmod")
+        ship_data["shieldmod"] = get_float("shieldmod")
+        ship_data["turnrate"] = get_float("turnrate")
+        ship_data["impulse"] = get_float("impulse")
+        ship_data["inertia"] = get_float("inertia")
+        
+        # Weapons
+        ship_data["fore"] = get_int("fore")
+        ship_data["aft"] = get_int("aft")
+        ship_data["equipcannons"] = get_param("equipcannons", "no")
+        ship_data["can_use_cannons"] = ship_data["equipcannons"].lower() == "yes"
+        
+        # Consoles
+        ship_data["consolestac"] = get_int("consolestac")
+        ship_data["consoleseng"] = get_int("consoleseng")
+        ship_data["consolessci"] = get_int("consolessci")
+        ship_data["consolesuni"] = get_int("consolesuni")
+        
+        # Hangars
+        ship_data["hangars"] = get_int("hangars")
+        
+        # Admiralty
+        ship_data["admiraltyeng"] = get_int("admiraltyeng")
+        ship_data["admiraltytac"] = get_int("admiraltytac")
+        ship_data["admiraltysci"] = get_int("admiraltysci")
+        
+        # Type (can be comma-separated)
+        type_value = get_param("type")
+        if type_value:
+            # Split by comma or slash
+            types = re.split(r'[,/]', type_value)
+            ship_data["type"] = [t.strip() for t in types if t.strip()]
+        
+        # Additional fields
+        ship_data["rank"] = get_param("rank")
+        ship_data["cost"] = get_param("cost")
+        ship_data["boffs"] = get_param("boffs")
+        ship_data["abilities"] = get_param("abilities")
+        
+        # Display fields
+        ship_data["displayprefix"] = get_param("displayprefix")
+        ship_data["displayclass"] = get_param("displayclass")
+        ship_data["displaytype"] = get_param("displaytype")
         
         return ship_data
     
@@ -237,8 +292,10 @@ class CargoScraper:
             
             ship_data = self.parse_ship_page(title)
             if ship_data:
-                ship_data["faction"] = [faction.title()]
-                ship_data["factionlede"] = faction.title()
+                # Add faction info
+                faction_name = faction.replace("-", " ").title()
+                ship_data["faction"] = [faction_name]
+                ship_data["factionlede"] = faction_name
                 ships.append(ship_data)
         
         logger.info(f"Successfully parsed {len(ships)}/{len(ship_titles)} ships")
@@ -281,7 +338,7 @@ class CargoScraper:
             "action": "query",
             "list": "search",
             "srsearch": f"{query} incategory:Playable_starships",
-            "srlimit": min(limit, 500),
+            "srlimit": min(limit, 50),  # Reduced to avoid too many results
             "format": "json"
         }
         
@@ -292,6 +349,8 @@ class CargoScraper:
             
             search_results = data.get("query", {}).get("search", [])
             ship_titles = [result["title"] for result in search_results]
+            
+            logger.info(f"Found {len(ship_titles)} search results for '{query}'")
             
             # Parse each result
             ships = []
