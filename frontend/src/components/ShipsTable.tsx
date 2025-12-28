@@ -23,6 +23,12 @@ interface ShipsTableProps {
   ships: Ship[];
 }
 
+interface BoffParsed {
+  rank: string; // 1-4
+  type: string; // Tac, Sci, Eng, Uni
+  specialization: string; // MW, Int, Tmp, Pil, Cmd or empty
+}
+
 // Decode HTML entities (e.g., &amp; -> &)
 function decodeHtmlEntities(text: string): string {
   const textarea = document.createElement('textarea');
@@ -38,37 +44,60 @@ function splitCommaSeparated(value?: string): string[] {
     .filter(Boolean);
 }
 
-// Format Bridge Officer text
-// Example: "Lieutenant Commander Tactical" -> "3 Tac"
-// Example: "Commander Science-Intelligence" -> "4 Sci-Int"
-function formatBoffText(text: string): string {
-  if (!text) return '';
-  
-  let result = text.trim();
-  
-  // Replace ranks (order matters! Lieutenant Commander before Lieutenant)
-  result = result.replace(/Lieutenant Commander/gi, '3');
-  result = result.replace(/Commander/gi, '4');
-  result = result.replace(/Lieutenant/gi, '2');
-  result = result.replace(/Ensign/gi, '1');
-  
-  // Replace specializations
-  result = result.replace(/Tactical/gi, 'Tac');
-  result = result.replace(/Engineering/gi, 'Eng');
-  result = result.replace(/Science/gi, 'Sci');
-  result = result.replace(/Universal/gi, 'Uni');
-  
-  // Replace specialization types
-  result = result.replace(/Intelligence/gi, 'Int');
-  result = result.replace(/Temporal Operative/gi, 'Tmp');
-  result = result.replace(/Pilot/gi, 'Pil');
-  result = result.replace(/Miracle Worker/gi, 'MW');
-  result = result.replace(/Command/gi, 'Cmd');
-  
-  // Clean up extra spaces
-  result = result.replace(/\s+/g, ' ').trim();
-  
-  return result;
+// Parse Bridge Officer text into structured data
+// Example: "Lieutenant Commander Tactical-Intelligence" -> { rank: "3", type: "Tac", specialization: "Int" }
+function parseBoffText(text: string): BoffParsed {
+  if (!text) return { rank: '', type: '', specialization: '' };
+
+  let remaining = text.trim();
+
+  // Extract rank
+  let rank = '';
+  if (/Lieutenant Commander/i.test(remaining)) {
+    rank = '3';
+    remaining = remaining.replace(/Lieutenant Commander/gi, '').trim();
+  } else if (/Commander/i.test(remaining)) {
+    rank = '4';
+    remaining = remaining.replace(/Commander/gi, '').trim();
+  } else if (/Lieutenant/i.test(remaining)) {
+    rank = '2';
+    remaining = remaining.replace(/Lieutenant/gi, '').trim();
+  } else if (/Ensign/i.test(remaining)) {
+    rank = '1';
+    remaining = remaining.replace(/Ensign/gi, '').trim();
+  }
+
+  // Extract type and specialization
+  let type = '';
+  let specialization = '';
+
+  // Check for hyphenated specializations (e.g., "Tactical-Intelligence")
+  const typeSpecMatch = remaining.match(/(Tactical|Engineering|Science|Universal)[-\s]*(Intelligence|Temporal Operative|Pilot|Miracle Worker|Command)/i);
+  if (typeSpecMatch) {
+    const typeRaw = typeSpecMatch[1];
+    const specRaw = typeSpecMatch[2];
+
+    // Map type
+    if (/Tactical/i.test(typeRaw)) type = 'Tac';
+    else if (/Engineering/i.test(typeRaw)) type = 'Eng';
+    else if (/Science/i.test(typeRaw)) type = 'Sci';
+    else if (/Universal/i.test(typeRaw)) type = 'Uni';
+
+    // Map specialization
+    if (/Intelligence/i.test(specRaw)) specialization = 'Int';
+    else if (/Temporal Operative/i.test(specRaw)) specialization = 'Tmp';
+    else if (/Pilot/i.test(specRaw)) specialization = 'Pil';
+    else if (/Miracle Worker/i.test(specRaw)) specialization = 'MW';
+    else if (/Command/i.test(specRaw)) specialization = 'Cmd';
+  } else {
+    // No hyphenated specialization, just extract type
+    if (/Tactical/i.test(remaining)) type = 'Tac';
+    else if (/Engineering/i.test(remaining)) type = 'Eng';
+    else if (/Science/i.test(remaining)) type = 'Sci';
+    else if (/Universal/i.test(remaining)) type = 'Uni';
+  }
+
+  return { rank, type, specialization };
 }
 
 // Normalize faction names for display
@@ -137,30 +166,86 @@ export function ShipsTable({ ships }: ShipsTableProps) {
 
   const columns = useMemo<ColumnDef<Ship>[]>(
     () => {
-      const boffColumns: ColumnDef<Ship>[] = Array.from({ length: maxBoffSlots }, (_, idx) => {
+      const boffColumns: ColumnDef<Ship>[] = [];
+
+      for (let idx = 0; idx < maxBoffSlots; idx++) {
         const boffIndex = idx;
 
-        return {
-          id: `boff_${boffIndex + 1}`,
-          header: `BOFF #${boffIndex + 1}`,
+        // Rank column
+        boffColumns.push({
+          id: `boff_${boffIndex + 1}_rank`,
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Rank</span>
+              <ColumnFilter column={column} title="Rank" />
+            </div>
+          ),
           accessorFn: (row) => {
             const parts = splitCommaSeparated(row.boffs);
-            return parts[boffIndex] ?? '';
+            const rawText = parts[boffIndex] ?? '';
+            const parsed = parseBoffText(rawText);
+            return parsed.rank || '';
           },
           cell: ({ getValue }) => {
             const value = getValue() as string;
-            if (!value) return <span className="text-gray-400">-</span>;
-            const formatted = formatBoffText(value);
-            return (
-              <span className="text-xs" title={value}>
-                {formatted}
-              </span>
+            return value ? <span className="text-xs">{value}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+          meta: { group: 'boffs', boffIndex, subColumn: 'rank' } as any,
+        });
+
+        // Type column
+        boffColumns.push({
+          id: `boff_${boffIndex + 1}_type`,
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Type</span>
+              <ColumnFilter column={column} title="Type" />
+            </div>
+          ),
+          accessorFn: (row) => {
+            const parts = splitCommaSeparated(row.boffs);
+            const rawText = parts[boffIndex] ?? '';
+            const parsed = parseBoffText(rawText);
+            return parsed.type || '';
+          },
+          cell: ({ getValue }) => {
+            const value = getValue() as string;
+            return value ? <span className="text-xs">{value}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+          meta: { group: 'boffs', boffIndex, subColumn: 'type' } as any,
+        });
+
+        // Specialization column
+        boffColumns.push({
+          id: `boff_${boffIndex + 1}_spec`,
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Spec</span>
+              <ColumnFilter column={column} title="Specialization" />
+            </div>
+          ),
+          accessorFn: (row) => {
+            const parts = splitCommaSeparated(row.boffs);
+            const rawText = parts[boffIndex] ?? '';
+            const parsed = parseBoffText(rawText);
+            return parsed.specialization || '';
+          },
+          cell: ({ getValue }) => {
+            const value = getValue() as string;
+            return value ? (
+              <span className="text-xs">{value}</span>
+            ) : (
+              <div className="flex justify-center">
+                <X className="h-4 w-4 text-gray-400" />
+              </div>
             );
           },
-          enableColumnFilter: false,
-          meta: { group: 'boffs' } as any,
-        };
-      });
+          filterFn: arrayIncludesFilter,
+          meta: { group: 'boffs', boffIndex, subColumn: 'spec' } as any,
+        });
+      }
 
       return [
         {
@@ -459,7 +544,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           meta: { group: 'consoles' } as any,
         },
 
-        // Bridge Officers (split into BOFF #1..n)
+        // Bridge Officers (split into Rank, Type, Spec for each BOFF slot)
         ...boffColumns,
 
         // Abilities (keep as single column)
@@ -581,6 +666,9 @@ export function ShipsTable({ ships }: ShipsTableProps) {
     },
   });
 
+  // Count BOFF sub-columns per BOFF slot (3 per slot)
+  const totalBoffColumns = maxBoffSlots * 3;
+
   return (
     <div className="space-y-4">
       {/* Ship Count */}
@@ -615,7 +703,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
-              {/* Group header row */}
+              {/* Top group header row */}
               <tr>
                 {/* Sticky first column placeholder to keep alignment with Ship Name */}
                 <th
@@ -663,9 +751,9 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   Consoles
                 </th>
 
-                {/* Bridge Officers (split columns) */}
+                {/* Bridge Officers (all BOFF sub-columns) */}
                 <th
-                  colSpan={maxBoffSlots}
+                  colSpan={totalBoffColumns}
                   className={cn(
                     'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
                     groupHeaderBg.boffs
@@ -691,16 +779,68 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                 <th colSpan={1} className="px-4 py-2" />
               </tr>
 
+              {/* BOFF slot header row */}
+              <tr>
+                {/* Sticky first column + ungrouped columns */}
+                <th colSpan={1} className="px-4 py-1 sticky left-0 z-20 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700" />
+                <th colSpan={4} className="px-4 py-1" />
+
+                {/* Defense, Weapons, Mobility, Consoles groups */}
+                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.defense)} />
+                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.weapons)} />
+                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.mobility)} />
+                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.consoles)} />
+
+                {/* BOFF #x headers (each spanning 3 sub-columns) */}
+                {Array.from({ length: maxBoffSlots }, (_, i) => (
+                  <th
+                    key={`boff-slot-${i}`}
+                    colSpan={3}
+                    className={cn(
+                      'px-4 py-1 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider',
+                      groupHeaderBg.boffs,
+                      i === 0 && 'border-l-2 border-gray-300 dark:border-gray-700',
+                      i === maxBoffSlots - 1 && 'border-r-2 border-gray-300 dark:border-gray-700'
+                    )}
+                  >
+                    BOFF #{i + 1}
+                  </th>
+                ))}
+
+                {/* Abilities */}
+                <th colSpan={1} className="px-4 py-1" />
+
+                {/* Admiralty */}
+                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.admiralty)} />
+
+                {/* Hangar */}
+                <th colSpan={1} className="px-4 py-1" />
+              </tr>
+
               {/* Column header row */}
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header, index) => {
-                    const group = (header.column.columnDef as any)?.meta?.group as ColumnGroup;
-                    const prevGroup = (headerGroup.headers[index - 1]?.column.columnDef as any)?.meta?.group as ColumnGroup;
-                    const nextGroup = (headerGroup.headers[index + 1]?.column.columnDef as any)?.meta?.group as ColumnGroup;
+                    const meta = (header.column.columnDef as any)?.meta;
+                    const group = meta?.group as ColumnGroup;
+                    const boffIndex = meta?.boffIndex as number | undefined;
+                    const subColumn = meta?.subColumn as string | undefined;
 
+                    const prevMeta = (headerGroup.headers[index - 1]?.column.columnDef as any)?.meta;
+                    const prevGroup = prevMeta?.group as ColumnGroup;
+                    const prevBoffIndex = prevMeta?.boffIndex as number | undefined;
+
+                    const nextMeta = (headerGroup.headers[index + 1]?.column.columnDef as any)?.meta;
+                    const nextGroup = nextMeta?.group as ColumnGroup;
+                    const nextBoffIndex = nextMeta?.boffIndex as number | undefined;
+
+                    // Determine if this is first/last of a group
                     const isFirstOfGroup = !!group && group !== prevGroup;
                     const isLastOfGroup = !!group && group !== nextGroup;
+
+                    // For BOFF columns, also check if first/last of a BOFF slot
+                    const isFirstOfBoffSlot = group === 'boffs' && boffIndex !== prevBoffIndex && subColumn === 'rank';
+                    const isLastOfBoffSlot = group === 'boffs' && boffIndex !== nextBoffIndex && subColumn === 'spec';
 
                     const groupBg = group ? groupHeaderBg[group] : '';
 
@@ -712,7 +852,9 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                           index === 0 && 'sticky left-0 z-10 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700',
                           group && groupBg,
                           isFirstOfGroup && 'border-l-2 border-gray-300 dark:border-gray-700',
-                          isLastOfGroup && 'border-r-2 border-gray-300 dark:border-gray-700'
+                          isLastOfGroup && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          isFirstOfBoffSlot && 'border-l border-gray-300 dark:border-gray-600',
+                          isLastOfBoffSlot && 'border-r border-gray-300 dark:border-gray-600'
                         )}
                       >
                         {header.isPlaceholder
@@ -731,12 +873,24 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                   className="hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
                 >
                   {row.getVisibleCells().map((cell, index) => {
-                    const group = (cell.column.columnDef as any)?.meta?.group as ColumnGroup;
-                    const prevGroup = (row.getVisibleCells()[index - 1]?.column.columnDef as any)?.meta?.group as ColumnGroup;
-                    const nextGroup = (row.getVisibleCells()[index + 1]?.column.columnDef as any)?.meta?.group as ColumnGroup;
+                    const meta = (cell.column.columnDef as any)?.meta;
+                    const group = meta?.group as ColumnGroup;
+                    const boffIndex = meta?.boffIndex as number | undefined;
+                    const subColumn = meta?.subColumn as string | undefined;
+
+                    const prevMeta = (row.getVisibleCells()[index - 1]?.column.columnDef as any)?.meta;
+                    const prevGroup = prevMeta?.group as ColumnGroup;
+                    const prevBoffIndex = prevMeta?.boffIndex as number | undefined;
+
+                    const nextMeta = (row.getVisibleCells()[index + 1]?.column.columnDef as any)?.meta;
+                    const nextGroup = nextMeta?.group as ColumnGroup;
+                    const nextBoffIndex = nextMeta?.boffIndex as number | undefined;
 
                     const isFirstOfGroup = !!group && group !== prevGroup;
                     const isLastOfGroup = !!group && group !== nextGroup;
+
+                    const isFirstOfBoffSlot = group === 'boffs' && boffIndex !== prevBoffIndex && subColumn === 'rank';
+                    const isLastOfBoffSlot = group === 'boffs' && boffIndex !== nextBoffIndex && subColumn === 'spec';
 
                     return (
                       <td
@@ -745,7 +899,9 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                           'px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
                           index === 0 && 'sticky left-0 z-10 bg-white dark:bg-gray-950 border-r-2 border-gray-300 dark:border-gray-700',
                           isFirstOfGroup && 'border-l-2 border-gray-300 dark:border-gray-700',
-                          isLastOfGroup && 'border-r-2 border-gray-300 dark:border-gray-700'
+                          isLastOfGroup && 'border-r-2 border-gray-300 dark:border-gray-700',
+                          isFirstOfBoffSlot && 'border-l border-gray-300 dark:border-gray-600',
+                          isLastOfBoffSlot && 'border-r border-gray-300 dark:border-gray-600'
                         )}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
