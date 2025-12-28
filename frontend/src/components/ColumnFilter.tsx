@@ -1,16 +1,18 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Filter, X, Check } from 'lucide-react';
-import { Column } from '@tanstack/react-table';
+import { Column, Table } from '@tanstack/react-table';
 import { cn } from '../lib/utils';
 import { createPortal } from 'react-dom';
 
 interface ColumnFilterProps<TData> {
   column: Column<TData, unknown>;
+  table: Table<TData>;
   title: string;
 }
 
 export function ColumnFilter<TData>({
   column,
+  table,
   title,
 }: ColumnFilterProps<TData>) {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,16 +28,12 @@ export function ColumnFilter<TData>({
       const scrollY = window.scrollY;
       const scrollX = window.scrollX;
       
-      // Calculate position (align right edge of dropdown with right edge of button if possible, else left)
-      // Default to bottom-left alignment
       let left = rect.left + scrollX;
       
-      // Check if dropdown would go off-screen to the right (assuming ~256px width)
       if (left + 256 > window.innerWidth) {
-        left = (rect.right + scrollX) - 256; // Align right edge
+        left = (rect.right + scrollX) - 256;
       }
       
-      // Ensure it doesn't go off-screen to the left
       if (left < 10) left = 10;
 
       setPosition({
@@ -45,14 +43,56 @@ export function ColumnFilter<TData>({
     }
   }, [isOpen]);
 
-  // Get unique values from the column
-  // getFacetedUniqueValues() already respects OTHER active filters (not including this column's filter)
-  // This gives us dynamic filtering automatically!
+  // Get unique values by MANUALLY filtering rows, excluding this column's filter
   const uniqueValues = useMemo(() => {
-    const facetedValues = column.getFacetedUniqueValues();
+    const currentColumnId = column.id;
+    const allRows = table.getCoreRowModel().rows;
+    
+    // Get all filters except the current column
+    const otherFilters = table.getState().columnFilters.filter(
+      (f) => f.id !== currentColumnId
+    );
+    
+    // Apply all OTHER filters (not this column's filter)
+    let filteredRows = allRows;
+    
+    // Apply column filters
+    otherFilters.forEach((filter) => {
+      const filterColumn = table.getColumn(filter.id);
+      if (filterColumn) {
+        const filterFn = filterColumn.columnDef.filterFn;
+        if (filterFn && typeof filterFn === 'function') {
+          filteredRows = filteredRows.filter((row) =>
+            filterFn(row, filter.id, filter.value, (id) => table.getColumn(id))
+          );
+        }
+      }
+    });
+    
+    // Apply global filter
+    const globalFilter = table.getState().globalFilter;
+    if (globalFilter && globalFilter.trim()) {
+      const globalFilterFn = table.options.globalFilterFn;
+      if (globalFilterFn) {
+        filteredRows = filteredRows.filter((row) =>
+          globalFilterFn(row, currentColumnId, globalFilter, (id) => table.getColumn(id))
+        );
+      } else {
+        // Fallback: simple string search across all columns
+        filteredRows = filteredRows.filter((row) => {
+          return Object.values(row.original as object).some((value) =>
+            String(value).toLowerCase().includes(globalFilter.toLowerCase())
+          );
+        });
+      }
+    }
+    
+    // Now count unique values from the filtered rows
     const valuesMap = new Map<string, number>();
 
-    facetedValues.forEach((count, value) => {
+    filteredRows.forEach((row) => {
+      const value = row.getValue(currentColumnId);
+      
       // Handle special cases
       let displayValue = String(value);
       
@@ -64,19 +104,17 @@ export function ColumnFilter<TData>({
       else if (typeof value === 'boolean' || value === 'true' || value === 'false') {
         displayValue = (value === true || value === 'true') ? 'Yes' : 'No';
       }
-      // Handle Hangar values (remove true/false artifacts if any, keep 0, 1, 2)
+      // Handle Hangar values
       else if (title === 'Hangar') {
          if (value === 'true' || value === true || value === 'false' || value === false) {
-             return; // Skip boolean artifacts in Hangar
+             return;
          }
       }
 
-      // Normalize string values to handle case differences (e.g. BATTLECRUISER vs Battlecruiser)
-      // But keep the first encountered casing as the display key
       const normalizedKey = displayValue.trim();
       
       const currentCount = valuesMap.get(normalizedKey) || 0;
-      valuesMap.set(normalizedKey, currentCount + count);
+      valuesMap.set(normalizedKey, currentCount + 1);
     });
 
     const values = Array.from(valuesMap.entries()).map(([value, count]) => ({
@@ -86,7 +124,7 @@ export function ColumnFilter<TData>({
 
     // Sort values alphabetically
     return values.sort((a, b) => a.value.localeCompare(b.value));
-  }, [column, title]);
+  }, [column, table, title]);
 
   // Filter values based on search term
   const filteredValues = useMemo(() => {
@@ -113,10 +151,8 @@ export function ColumnFilter<TData>({
 
   // Select all visible values
   const selectAll = () => {
-    const allValues = filteredValues.map((item) => item.value);
-    // Merge with existing selected values that might be filtered out
-    const uniqueNewFilter = Array.from(new Set([...filterValue, ...allValues]));
-    column.setFilterValue(uniqueNewFilter);
+    const allAvailableValues = uniqueValues.filter((item) => item.count > 0).map((item) => item.value);
+    column.setFilterValue(allAvailableValues);
   };
 
   // Clear all filters
@@ -147,10 +183,9 @@ export function ColumnFilter<TData>({
     };
   }, [isOpen]);
 
-  // Handle scroll to close dropdown - only for scrolling OUTSIDE the dropdown
+  // Handle scroll to close dropdown
   useEffect(() => {
     const handleScroll = (e: Event) => {
-      // Only close if scroll happened outside the dropdown
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
@@ -244,9 +279,7 @@ export function ColumnFilter<TData>({
               <div className="space-y-0.5">
                 {filteredValues.map((item) => {
                   const isChecked = filterValue.includes(item.value);
-                  // Don't disable items with count 0 if they are already selected
-                  // (they might be selected but filtered out by other filters)
-                  const isDisabled = item.count === 0 && !isChecked;
+                  const isDisabled = item.count === 0;
                   
                   return (
                     <label
