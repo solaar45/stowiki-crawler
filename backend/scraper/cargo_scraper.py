@@ -1,7 +1,7 @@
 """
 Cargo Ship Scraper
 
-Scrapes ship data from STOWiki's Cargo database using MediaWiki API.
+Scrapes ship data from STOWiki's Cargo database using MediaWiki Cargo API.
 Optimized for database sync operations.
 """
 import httpx
@@ -15,248 +15,87 @@ logger = logging.getLogger(__name__)
 
 class CargoShipScraper:
     """
-    Scraper for STOWiki ship data using Cargo API and Wikitext parsing
+    Scraper for STOWiki ship data using Cargo API
     """
     
     BASE_URL = "https://stowiki.net/api.php"
     
-    FACTION_CATEGORIES = {
-        "federation": "Category:Federation playable starships",
-        "klingon": "Category:Klingon Defense Force playable starships",
-        "romulan": "Category:Romulan Republic playable starships",
-        "dominion": "Category:Dominion playable starships",
-        "cross-faction": "Category:Cross-faction playable starships"
+    # Faction filters for Cargo queries
+    FACTION_FILTERS = {
+        "federation": "Ships.faction HOLDS 'Federation'",
+        "klingon": "Ships.faction HOLDS 'Klingon'",
+        "romulan": "Ships.faction HOLDS 'Romulan'",
+        "dominion": "Ships.faction HOLDS 'Dominion'",
+        "cross-faction": "Ships.factionlede='Cross Faction'"
     }
     
     def __init__(self):
         self.client = httpx.Client(timeout=30.0)
         logger.info("CargoShipScraper initialized")
     
-    def get_category_members(self, category: str, limit: int = 500) -> List[str]:
+    def get_all_ships(self, limit: int = 1000) -> List[Dict]:
         """
-        Get all page titles in a category
+        Get all ships from Cargo database
         
         Args:
-            category: Category name (e.g., "Category:Federation playable starships")
-            limit: Maximum number of members to fetch
+            limit: Maximum ships to fetch
         
         Returns:
-            List of page titles
+            List of ship data dictionaries
         """
-        members = []
-        cm_continue = None
+        ships = []
+        offset = 0
+        batch_size = 500  # Cargo max limit
         
-        while len(members) < limit:
+        while len(ships) < limit:
             params = {
-                "action": "query",
-                "list": "categorymembers",
-                "cmtitle": category,
-                "cmlimit": min(500, limit - len(members)),
+                "action": "cargoquery",
+                "tables": "Ships",
+                "fields": self._get_field_list(),
+                "limit": min(batch_size, limit - len(ships)),
+                "offset": offset,
                 "format": "json"
             }
-            
-            if cm_continue:
-                params["cmcontinue"] = cm_continue
             
             try:
                 response = self.client.get(self.BASE_URL, params=params)
                 response.raise_for_status()
                 data = response.json()
                 
-                if "query" in data and "categorymembers" in data["query"]:
-                    batch = [m["title"] for m in data["query"]["categorymembers"]]
-                    members.extend(batch)
-                    logger.debug(f"Fetched {len(batch)} members from {category}")
-                
-                # Check for continuation
-                if "continue" in data and "cmcontinue" in data["continue"]:
-                    cm_continue = data["continue"]["cmcontinue"]
+                if "cargoquery" in data:
+                    results = data["cargoquery"]
+                    
+                    if not results:
+                        break  # No more results
+                    
+                    for item in results:
+                        ship = self._parse_cargo_result(item["title"])
+                        if ship:
+                            ships.append(ship)
+                    
+                    logger.info(f"Fetched {len(results)} ships (total: {len(ships)})")
+                    
+                    if len(results) < batch_size:
+                        break  # Last page
+                    
+                    offset += batch_size
                 else:
+                    logger.warning("No cargoquery in response")
                     break
             
             except Exception as e:
-                logger.error(f"Error fetching category members: {e}")
+                logger.error(f"Error fetching ships: {e}", exc_info=True)
                 break
-        
-        logger.info(f"Found {len(members)} members in {category}")
-        return members
-    
-    def parse_ship_page(self, page_title: str) -> Optional[Dict]:
-        """
-        Parse a single ship page and extract data
-        
-        Args:
-            page_title: Wiki page title
-        
-        Returns:
-            Ship data dictionary or None if parsing fails
-        """
-        try:
-            # Get page wikitext
-            params = {
-                "action": "query",
-                "titles": page_title,
-                "prop": "revisions",
-                "rvprop": "content",
-                "rvslots": "main",
-                "format": "json"
-            }
             
-            response = self.client.get(self.BASE_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Extract wikitext
-            pages = data.get("query", {}).get("pages", {})
-            page = next(iter(pages.values()))
-            
-            if "revisions" not in page:
-                logger.warning(f"No revisions found for {page_title}")
-                return None
-            
-            wikitext = page["revisions"][0]["slots"]["main"]["*"]
-            
-            # Parse ship data from wikitext
-            ship_data = self._parse_wikitext(wikitext)
-            
-            if ship_data:
-                ship_data["name"] = page_title
-                ship_data["wiki_url"] = f"https://stowiki.net/wiki/{page_title.replace(' ', '_')}"
-                return ship_data
-            
-            return None
+            # Rate limiting
+            time.sleep(0.1)
         
-        except Exception as e:
-            logger.error(f"Error parsing {page_title}: {e}", exc_info=True)
-            return None
-    
-    def _parse_wikitext(self, wikitext: str) -> Optional[Dict]:
-        """
-        Parse ship data from wikitext template
-        
-        Extracts data from {{Shiptypeinfo|...}} template
-        """
-        # Find Shiptypeinfo template
-        template_match = re.search(r'{{Shiptypeinfo\s*\|([^}]+)}}', wikitext, re.DOTALL | re.IGNORECASE)
-        
-        if not template_match:
-            return None
-        
-        template_content = template_match.group(1)
-        
-        # Parse template parameters
-        params = {}
-        
-        # Split by | but handle nested templates
-        parts = []
-        depth = 0
-        current = ""
-        
-        for char in template_content:
-            if char == '{' or char == '[':
-                depth += 1
-            elif char == '}' or char == ']':
-                depth -= 1
-            elif char == '|' and depth == 0:
-                parts.append(current.strip())
-                current = ""
-                continue
-            current += char
-        
-        if current:
-            parts.append(current.strip())
-        
-        # Parse key=value pairs
-        for part in parts:
-            if '=' in part:
-                key, value = part.split('=', 1)
-                key = key.strip().lower()
-                value = value.strip()
-                
-                # Skip empty values
-                if value and value != "?":
-                    params[key] = value
-        
-        # Convert to ship data format
-        ship_data = {}
-        
-        # Basic info
-        ship_data['faction'] = self._parse_list(params.get('faction', ''))
-        ship_data['factionlede'] = params.get('factionlede')
-        ship_data['tier'] = self._parse_int(params.get('tier'))
-        ship_data['type'] = self._parse_list(params.get('type', ''))
-        ship_data['rank'] = params.get('rank')
-        ship_data['cost'] = params.get('cost')
-        
-        # Display
-        ship_data['displayprefix'] = params.get('displayprefix')
-        ship_data['displayclass'] = params.get('displayclass')
-        ship_data['displaytype'] = params.get('displaytype')
-        
-        # Stats
-        ship_data['hull'] = self._parse_int(params.get('hull'))
-        ship_data['hullmod'] = self._parse_float(params.get('hullmod'))
-        ship_data['shieldmod'] = self._parse_float(params.get('shieldmod'))
-        ship_data['turnrate'] = self._parse_float(params.get('turnrate'))
-        ship_data['impulse'] = self._parse_float(params.get('impulse'))
-        ship_data['inertia'] = self._parse_float(params.get('inertia'))
-        
-        # Weapons
-        ship_data['fore'] = self._parse_int(params.get('fore'))
-        ship_data['aft'] = self._parse_int(params.get('aft'))
-        ship_data['equipcannons'] = params.get('equipcannons', 'no')
-        
-        # Consoles
-        ship_data['consolestac'] = self._parse_int(params.get('consolestac'))
-        ship_data['consoleseng'] = self._parse_int(params.get('consoleseng'))
-        ship_data['consolessci'] = self._parse_int(params.get('consolessci'))
-        ship_data['consolesuni'] = self._parse_int(params.get('consolesuni'))
-        
-        # Equipment
-        ship_data['hangars'] = self._parse_int(params.get('hangars'))
-        ship_data['boffs'] = params.get('boffs')
-        ship_data['abilities'] = params.get('abilities')
-        
-        # Admiralty
-        ship_data['admiraltyeng'] = self._parse_int(params.get('admiraltyeng'))
-        ship_data['admiraltytac'] = self._parse_int(params.get('admiraltytac'))
-        ship_data['admiraltysci'] = self._parse_int(params.get('admiraltysci'))
-        
-        return ship_data
-    
-    def _parse_int(self, value: Optional[str]) -> Optional[int]:
-        """Parse integer from string"""
-        if not value or value == "?":
-            return None
-        try:
-            # Remove commas and other non-numeric chars
-            clean = re.sub(r'[^0-9-]', '', value)
-            return int(clean) if clean else None
-        except:
-            return None
-    
-    def _parse_float(self, value: Optional[str]) -> Optional[float]:
-        """Parse float from string"""
-        if not value or value == "?":
-            return None
-        try:
-            # Remove commas and keep decimals
-            clean = re.sub(r'[^0-9.-]', '', value)
-            return float(clean) if clean else None
-        except:
-            return None
-    
-    def _parse_list(self, value: str) -> List[str]:
-        """Parse comma-separated list"""
-        if not value or value == "?":
-            return []
-        # Split by comma or <br>
-        items = re.split(r',|<br\s*/?>|;', value)
-        return [item.strip() for item in items if item.strip()]
+        logger.info(f"Fetched total of {len(ships)} ships")
+        return ships
     
     def get_faction_ships(self, faction: str, limit: int = 500) -> List[Dict]:
         """
-        Get all ships for a faction
+        Get all ships for a specific faction
         
         Args:
             faction: Faction key (federation, klingon, etc.)
@@ -265,29 +104,289 @@ class CargoShipScraper:
         Returns:
             List of ship data dictionaries
         """
-        category = self.FACTION_CATEGORIES.get(faction.lower())
+        where_clause = self.FACTION_FILTERS.get(faction.lower())
         
-        if not category:
+        if not where_clause:
             logger.error(f"Unknown faction: {faction}")
             return []
         
-        # Get category members
-        ship_names = self.get_category_members(category, limit=limit)
-        
-        # Parse each ship
         ships = []
-        for i, name in enumerate(ship_names, 1):
-            logger.info(f"Parsing {i}/{len(ship_names)}: {name}")
+        offset = 0
+        batch_size = 500
+        
+        while len(ships) < limit:
+            params = {
+                "action": "cargoquery",
+                "tables": "Ships",
+                "fields": self._get_field_list(),
+                "where": where_clause,
+                "limit": min(batch_size, limit - len(ships)),
+                "offset": offset,
+                "format": "json"
+            }
             
-            ship_data = self.parse_ship_page(name)
-            if ship_data:
-                ships.append(ship_data)
+            try:
+                response = self.client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                if "cargoquery" in data:
+                    results = data["cargoquery"]
+                    
+                    if not results:
+                        break
+                    
+                    for item in results:
+                        ship = self._parse_cargo_result(item["title"])
+                        if ship:
+                            ships.append(ship)
+                    
+                    logger.info(f"Fetched {len(results)} {faction} ships (total: {len(ships)})")
+                    
+                    if len(results) < batch_size:
+                        break
+                    
+                    offset += batch_size
+                else:
+                    break
             
-            # Rate limiting
+            except Exception as e:
+                logger.error(f"Error fetching {faction} ships: {e}", exc_info=True)
+                break
+            
             time.sleep(0.1)
         
-        logger.info(f"Parsed {len(ships)} ships for {faction}")
+        logger.info(f"Fetched {len(ships)} ships for {faction}")
         return ships
+    
+    def get_category_members(self, category: str = None, limit: int = 1000) -> List[str]:
+        """
+        Get all ship names from Cargo database
+        
+        This is used for sync operations to get a list of all ships.
+        
+        Args:
+            category: Ignored (for compatibility)
+            limit: Maximum ship names to fetch
+        
+        Returns:
+            List of ship names
+        """
+        ship_names = []
+        offset = 0
+        batch_size = 500
+        
+        while len(ship_names) < limit:
+            params = {
+                "action": "cargoquery",
+                "tables": "Ships",
+                "fields": "_pageName",
+                "limit": min(batch_size, limit - len(ship_names)),
+                "offset": offset,
+                "format": "json"
+            }
+            
+            try:
+                response = self.client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                if "cargoquery" in data:
+                    results = data["cargoquery"]
+                    
+                    if not results:
+                        break
+                    
+                    for item in results:
+                        name = item["title"].get("pageName")
+                        if name:
+                            ship_names.append(name)
+                    
+                    if len(results) < batch_size:
+                        break
+                    
+                    offset += batch_size
+                else:
+                    break
+            
+            except Exception as e:
+                logger.error(f"Error fetching ship names: {e}", exc_info=True)
+                break
+        
+        logger.info(f"Found {len(ship_names)} ship names")
+        return ship_names
+    
+    def parse_ship_page(self, page_title: str) -> Optional[Dict]:
+        """
+        Parse a single ship by querying Cargo for its data
+        
+        Args:
+            page_title: Ship name
+        
+        Returns:
+            Ship data dictionary or None if not found
+        """
+        params = {
+            "action": "cargoquery",
+            "tables": "Ships",
+            "fields": self._get_field_list(),
+            "where": f"_pageName='{page_title}'",
+            "limit": 1,
+            "format": "json"
+        }
+        
+        try:
+            response = self.client.get(self.BASE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            if "cargoquery" in data and data["cargoquery"]:
+                ship = self._parse_cargo_result(data["cargoquery"][0]["title"])
+                return ship
+            
+            logger.warning(f"No data found for {page_title}")
+            return None
+        
+        except Exception as e:
+            logger.error(f"Error parsing {page_title}: {e}", exc_info=True)
+            return None
+    
+    def _get_field_list(self) -> str:
+        """Get list of fields to query from Cargo"""
+        fields = [
+            "_pageName",
+            "faction",
+            "factionlede",
+            "tier",
+            "type",
+            "rank",
+            "cost",
+            "displayprefix",
+            "displayclass",
+            "displaytype",
+            "hull",
+            "hullmod",
+            "shieldmod",
+            "turnrate",
+            "impulse",
+            "inertia",
+            "fore",
+            "aft",
+            "equipcannons",
+            "consolestac",
+            "consoleseng",
+            "consolessci",
+            "consolesuni",
+            "hangars",
+            "boffs",
+            "abilities",
+            "admiraltyeng",
+            "admiraltytac",
+            "admiraltysci"
+        ]
+        return ",".join(fields)
+    
+    def _parse_cargo_result(self, cargo_data: Dict) -> Optional[Dict]:
+        """
+        Parse ship data from Cargo query result
+        
+        Args:
+            cargo_data: Raw Cargo result
+        
+        Returns:
+            Parsed ship data dictionary
+        """
+        try:
+            ship_data = {}
+            
+            # Basic info
+            ship_data['name'] = cargo_data.get('pageName', '')
+            ship_data['faction'] = self._parse_list(cargo_data.get('faction', ''))
+            ship_data['factionlede'] = cargo_data.get('factionlede')
+            ship_data['tier'] = self._parse_int(cargo_data.get('tier'))
+            ship_data['type'] = self._parse_list(cargo_data.get('type', ''))
+            ship_data['rank'] = cargo_data.get('rank')
+            ship_data['cost'] = cargo_data.get('cost')
+            
+            # Display
+            ship_data['displayprefix'] = cargo_data.get('displayprefix')
+            ship_data['displayclass'] = cargo_data.get('displayclass')
+            ship_data['displaytype'] = cargo_data.get('displaytype')
+            
+            # Stats
+            ship_data['hull'] = self._parse_int(cargo_data.get('hull'))
+            ship_data['hullmod'] = self._parse_float(cargo_data.get('hullmod'))
+            ship_data['shieldmod'] = self._parse_float(cargo_data.get('shieldmod'))
+            ship_data['turnrate'] = self._parse_float(cargo_data.get('turnrate'))
+            ship_data['impulse'] = self._parse_float(cargo_data.get('impulse'))
+            ship_data['inertia'] = self._parse_float(cargo_data.get('inertia'))
+            
+            # Weapons
+            ship_data['fore'] = self._parse_int(cargo_data.get('fore'))
+            ship_data['aft'] = self._parse_int(cargo_data.get('aft'))
+            ship_data['equipcannons'] = cargo_data.get('equipcannons', 'no')
+            
+            # Consoles
+            ship_data['consolestac'] = self._parse_int(cargo_data.get('consolestac'))
+            ship_data['consoleseng'] = self._parse_int(cargo_data.get('consoleseng'))
+            ship_data['consolessci'] = self._parse_int(cargo_data.get('consolessci'))
+            ship_data['consolesuni'] = self._parse_int(cargo_data.get('consolesuni'))
+            
+            # Equipment
+            ship_data['hangars'] = self._parse_int(cargo_data.get('hangars'))
+            ship_data['boffs'] = cargo_data.get('boffs')
+            ship_data['abilities'] = cargo_data.get('abilities')
+            
+            # Admiralty
+            ship_data['admiraltyeng'] = self._parse_int(cargo_data.get('admiraltyeng'))
+            ship_data['admiraltytac'] = self._parse_int(cargo_data.get('admiraltytac'))
+            ship_data['admiraltysci'] = self._parse_int(cargo_data.get('admiraltysci'))
+            
+            # Wiki URL
+            ship_data['wiki_url'] = f"https://stowiki.net/wiki/{ship_data['name'].replace(' ', '_')}"
+            
+            return ship_data
+        
+        except Exception as e:
+            logger.error(f"Error parsing cargo data: {e}", exc_info=True)
+            return None
+    
+    def _parse_int(self, value: Optional[str]) -> Optional[int]:
+        """Parse integer from string"""
+        if not value or value in ('?', '', 'None'):
+            return None
+        try:
+            clean = re.sub(r'[^0-9-]', '', str(value))
+            return int(clean) if clean and clean != '-' else None
+        except:
+            return None
+    
+    def _parse_float(self, value: Optional[str]) -> Optional[float]:
+        """Parse float from string"""
+        if not value or value in ('?', '', 'None'):
+            return None
+        try:
+            clean = re.sub(r'[^0-9.-]', '', str(value))
+            return float(clean) if clean and clean not in ('-', '.') else None
+        except:
+            return None
+    
+    def _parse_list(self, value: str) -> List[str]:
+        """Parse comma-separated list"""
+        if not value or value in ('?', '', 'None'):
+            return []
+        # Split by comma or semicolon
+        items = re.split(r'[,;]', value)
+        return [item.strip() for item in items if item.strip()]
+    
+    # Keep compatibility with old interface
+    FACTION_CATEGORIES = {
+        "federation": "Federation",
+        "klingon": "Klingon",
+        "romulan": "Romulan",
+        "dominion": "Dominion",
+        "cross-faction": "Cross Faction"
+    }
     
     def close(self):
         """Close HTTP client"""
