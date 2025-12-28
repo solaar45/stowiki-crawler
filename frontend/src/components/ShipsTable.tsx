@@ -3,7 +3,6 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getFacetedUniqueValues,
   getFacetedMinMaxValues,
   flexRender,
@@ -175,8 +174,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         boffColumns.push({
           id: `boff_${boffIndex + 1}_rank`,
           header: ({ column }) => (
-            <div className="flex items-center gap-2">
-              <span>Rank</span>
+            <div className="flex items-center justify-center">
               <ColumnFilter column={column} title="Rank" />
             </div>
           ),
@@ -198,8 +196,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         boffColumns.push({
           id: `boff_${boffIndex + 1}_type`,
           header: ({ column }) => (
-            <div className="flex items-center gap-2">
-              <span>Type</span>
+            <div className="flex items-center justify-center">
               <ColumnFilter column={column} title="Type" />
             </div>
           ),
@@ -221,8 +218,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         boffColumns.push({
           id: `boff_${boffIndex + 1}_spec`,
           header: ({ column }) => (
-            <div className="flex items-center gap-2">
-              <span>Spec</span>
+            <div className="flex items-center justify-center">
               <ColumnFilter column={column} title="Specialization" />
             </div>
           ),
@@ -234,11 +230,13 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           },
           cell: ({ getValue }) => {
             const value = getValue() as string;
-            return value ? (
-              <span className="text-xs">{value}</span>
-            ) : (
+            return (
               <div className="flex justify-center">
-                <X className="h-4 w-4 text-gray-400" />
+                {value ? (
+                  <span className="text-xs">{value}</span>
+                ) : (
+                  <X className="h-4 w-4 text-gray-400" />
+                )}
               </div>
             );
           },
@@ -656,14 +654,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues(),
-    initialState: {
-      pagination: {
-        pageSize: 20,
-      },
-    },
   });
 
   // Count BOFF sub-columns per BOFF slot (3 per slot)
@@ -844,11 +836,15 @@ export function ShipsTable({ ships }: ShipsTableProps) {
 
                     const groupBg = group ? groupHeaderBg[group] : '';
 
+                    // BOFF columns: minimal width
+                    const isBoffColumn = group === 'boffs';
+
                     return (
                       <th
                         key={header.id}
                         className={cn(
-                          'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap',
+                          'py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap',
+                          isBoffColumn ? 'px-1' : 'px-4',
                           index === 0 && 'sticky left-0 z-10 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700',
                           group && groupBg,
                           isFirstOfGroup && 'border-l-2 border-gray-300 dark:border-gray-700',
@@ -892,11 +888,14 @@ export function ShipsTable({ ships }: ShipsTableProps) {
                     const isFirstOfBoffSlot = group === 'boffs' && boffIndex !== prevBoffIndex && subColumn === 'rank';
                     const isLastOfBoffSlot = group === 'boffs' && boffIndex !== nextBoffIndex && subColumn === 'spec';
 
+                    const isBoffColumn = group === 'boffs';
+
                     return (
                       <td
                         key={cell.id}
                         className={cn(
-                          'px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
+                          'py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap',
+                          isBoffColumn ? 'px-1' : 'px-4',
                           index === 0 && 'sticky left-0 z-10 bg-white dark:bg-gray-950 border-r-2 border-gray-300 dark:border-gray-700',
                           isFirstOfGroup && 'border-l-2 border-gray-300 dark:border-gray-700',
                           isLastOfGroup && 'border-r-2 border-gray-300 dark:border-gray-700',
@@ -912,47 +911,6 @@ export function ShipsTable({ ships }: ShipsTableProps) {
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-700 dark:text-gray-300">
-          Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
-          {Math.min(
-            (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-            table.getFilteredRowModel().rows.length
-          )}{' '}
-          of {table.getFilteredRowModel().rows.length} ships
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            className={cn(
-              'p-2 rounded-lg border border-gray-300 dark:border-gray-700 transition-colors',
-              table.getCanPreviousPage()
-                ? 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                : 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-          </span>
-          <button
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            className={cn(
-              'p-2 rounded-lg border border-gray-300 dark:border-gray-700 transition-colors',
-              table.getCanNextPage()
-                ? 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                : 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
         </div>
       </div>
     </div>
