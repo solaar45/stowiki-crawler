@@ -247,7 +247,7 @@ class CargoShipScraper:
             "Ships.consolestac=consolestac",
             "Ships.consoleseng=consoleseng",
             "Ships.consolessci=consolessci",
-            "Ships.consolesuni=consolesuni",
+            # "Ships.consolesuni=consolesuni",  # CAUSES MWException!
             "Ships.hangars=hangars",
             "Ships.boffs=boffs",
             "Ships.abilities=abilities",
