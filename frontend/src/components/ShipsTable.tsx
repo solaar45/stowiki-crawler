@@ -4,15 +4,20 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
+  getFacetedUniqueValues,
+  getFacetedMinMaxValues,
   flexRender,
   type ColumnDef,
   type SortingState,
   type ColumnFiltersState,
+  type FilterFn,
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Check, X, ExternalLink } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Ship } from '../lib/api';
+import { ColumnFilter } from './ColumnFilter';
+import { RangeSlider } from './RangeSlider';
 
 interface ShipsTableProps {
   ships: Ship[];
@@ -38,6 +43,46 @@ function normalizeFactionName(faction: string): string {
 function formatCost(cost: string): string {
   return decodeHtmlEntities(cost).replace(/;/g, ' ');
 }
+
+// Custom filter function for array includes
+const arrayIncludesFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
+  const value = row.getValue(columnId);
+  if (value === null || value === undefined) return filterValue.includes('N/A');
+  return filterValue.includes(String(value));
+};
+
+// Custom filter function for boolean (DHC)
+const booleanFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
+  const value = row.getValue(columnId) as boolean;
+  return filterValue.includes(value ? 'Yes' : 'No');
+};
+
+// Custom filter function for hangar count
+const hangarFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
+  const hangars = row.original.hangars || 0;
+  return filterValue.includes(String(hangars));
+};
+
+// Custom filter function for admiralty ranges
+const admiraltyRangeFilter: FilterFn<Ship> = (row, columnId, filterValue: string[]) => {
+  const value = (row.getValue(columnId) as number) || 0;
+  
+  return filterValue.some(range => {
+    if (range === '0-50') return value >= 0 && value <= 50;
+    if (range === '51-100') return value > 50 && value <= 100;
+    if (range === '101-150') return value > 100 && value <= 150;
+    if (range === '151-200') return value > 150 && value <= 200;
+    if (range === '201+') return value > 200;
+    return false;
+  });
+};
+
+// Custom filter function for numeric range
+const rangeFilter: FilterFn<Ship> = (row, columnId, filterValue: [number, number]) => {
+  const value = row.getValue(columnId) as number | undefined;
+  if (value === null || value === undefined) return false;
+  return value >= filterValue[0] && value <= filterValue[1];
+};
 
 export function ShipsTable({ ships }: ShipsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -68,10 +113,16 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             <ExternalLink className="h-3 w-3" />
           </a>
         ),
+        enableColumnFilter: false,
       },
       {
         accessorKey: 'factionlede',
-        header: 'Faction',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Faction</span>
+            <ColumnFilter column={column} title="Faction" />
+          </div>
+        ),
         cell: ({ row }) => {
           const faction = row.getValue('factionlede') as string | undefined;
           if (!faction) return <span className="text-gray-400">N/A</span>;
@@ -82,30 +133,45 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </span>
           );
         },
+        filterFn: arrayIncludesFilter,
       },
       {
         accessorKey: 'tier',
         header: ({ column }) => (
-          <button
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
-          >
-            TIER
-            <ArrowUpDown className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
+            >
+              TIER
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+            <ColumnFilter column={column} title="Tier" />
+          </div>
         ),
         cell: ({ row }) => {
           const tier = row.getValue('tier') as number | undefined;
           return tier ? tier : <span className="text-gray-400">N/A</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
       {
         accessorKey: 'type',
-        header: 'Type',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Type</span>
+            <ColumnFilter column={column} title="Type" />
+          </div>
+        ),
         cell: ({ row }) => {
           const types = row.getValue('type') as string[];
           if (!types || types.length === 0) return <span className="text-gray-400">N/A</span>;
           return types.join(', ');
+        },
+        filterFn: (row, columnId, filterValue: string[]) => {
+          const types = row.getValue(columnId) as string[];
+          if (!types || types.length === 0) return filterValue.includes('N/A');
+          return types.some(type => filterValue.includes(type));
         },
       },
       {
@@ -116,46 +182,68 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           if (!cost) return <span className="text-gray-400">-</span>;
           return formatCost(cost);
         },
+        enableColumnFilter: false,
       },
 
       // Defense
       {
         accessorKey: 'hull',
         header: ({ column }) => (
-          <button
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
-          >
-            HULL
-            <ArrowUpDown className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+              className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
+            >
+              HULL
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+            <RangeSlider column={column} title="Hull" />
+          </div>
         ),
         cell: ({ row }) => {
           const hull = row.getValue('hull') as number | undefined;
           return hull ? hull.toLocaleString() : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'hullmod',
-        header: 'Hull Mod',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Hull Mod</span>
+            <RangeSlider column={column} title="Hull Mod" />
+          </div>
+        ),
         cell: ({ row }) => {
           const mod = row.getValue('hullmod') as number | undefined;
           return mod ? mod.toFixed(2) : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'shieldmod',
-        header: 'Shield Mod',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Shield Mod</span>
+            <RangeSlider column={column} title="Shield Mod" />
+          </div>
+        ),
         cell: ({ row }) => {
           const mod = row.getValue('shieldmod') as number | undefined;
           return mod ? mod.toFixed(2) : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
 
       // Weapons
       {
         accessorKey: 'can_use_cannons',
-        header: 'DHC',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>DHC</span>
+            <ColumnFilter column={column} title="DHC" />
+          </div>
+        ),
         cell: ({ row }) => {
           const canEquip = row.getValue('can_use_cannons') as boolean;
           return (
@@ -168,74 +256,123 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </div>
           );
         },
+        filterFn: booleanFilter,
       },
       {
         accessorKey: 'fore',
-        header: 'Fore',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Fore</span>
+            <ColumnFilter column={column} title="Fore" />
+          </div>
+        ),
         cell: ({ row }) => {
           const fore = row.getValue('fore') as number | undefined;
           return fore ? fore : <span className="text-gray-400">-</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
       {
         accessorKey: 'aft',
-        header: 'Aft',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Aft</span>
+            <ColumnFilter column={column} title="Aft" />
+          </div>
+        ),
         cell: ({ row }) => {
           const aft = row.getValue('aft') as number | undefined;
           return aft ? aft : <span className="text-gray-400">-</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
 
       // Mobility
       {
         accessorKey: 'turnrate',
-        header: 'Turn',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Turn</span>
+            <RangeSlider column={column} title="Turn Rate" />
+          </div>
+        ),
         cell: ({ row }) => {
           const rate = row.getValue('turnrate') as number | undefined;
           return rate ? rate.toFixed(1) : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'impulse',
-        header: 'Imp',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Imp</span>
+            <RangeSlider column={column} title="Impulse" />
+          </div>
+        ),
         cell: ({ row }) => {
           const impulse = row.getValue('impulse') as number | undefined;
           return impulse ? impulse.toFixed(2) : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
       {
         accessorKey: 'inertia',
-        header: 'Inrt',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Inrt</span>
+            <RangeSlider column={column} title="Inertia" />
+          </div>
+        ),
         cell: ({ row }) => {
           const inertia = row.getValue('inertia') as number | undefined;
           return inertia ? inertia : <span className="text-gray-400">-</span>;
         },
+        filterFn: rangeFilter,
       },
 
       // Consoles
       {
         accessorKey: 'consolestac',
-        header: 'TAC',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>TAC</span>
+            <ColumnFilter column={column} title="TAC Consoles" />
+          </div>
+        ),
         cell: ({ row }) => {
           const tac = row.getValue('consolestac') as number | undefined;
           return tac || <span className="text-gray-400">-</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
       {
         accessorKey: 'consoleseng',
-        header: 'ENG',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>ENG</span>
+            <ColumnFilter column={column} title="ENG Consoles" />
+          </div>
+        ),
         cell: ({ row }) => {
           const eng = row.getValue('consoleseng') as number | undefined;
           return eng || <span className="text-gray-400">-</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
       {
         accessorKey: 'consolessci',
-        header: 'SCI',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>SCI</span>
+            <ColumnFilter column={column} title="SCI Consoles" />
+          </div>
+        ),
         cell: ({ row }) => {
           const sci = row.getValue('consolessci') as number | undefined;
           return sci || <span className="text-gray-400">-</span>;
         },
+        filterFn: arrayIncludesFilter,
       },
 
       {
@@ -250,6 +387,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </span>
           );
         },
+        enableColumnFilter: false,
       },
       {
         accessorKey: 'abilities',
@@ -263,37 +401,86 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </span>
           );
         },
+        enableColumnFilter: false,
       },
 
       // Admiralty
       {
         accessorKey: 'admiraltyeng',
-        header: 'Eng',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Eng</span>
+            <ColumnFilter column={column} title="Admiralty Eng" />
+          </div>
+        ),
         cell: ({ row }) => {
           const eng = row.getValue('admiraltyeng') as number | undefined;
           return eng || <span className="text-gray-400">-</span>;
         },
+        filterFn: admiraltyRangeFilter,
+        // Add virtual faceted values for ranges
+        accessorFn: (row) => {
+          const value = row.admiraltyeng || 0;
+          if (value <= 50) return '0-50';
+          if (value <= 100) return '51-100';
+          if (value <= 150) return '101-150';
+          if (value <= 200) return '151-200';
+          return '201+';
+        },
       },
       {
         accessorKey: 'admiraltytac',
-        header: 'Tac',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Tac</span>
+            <ColumnFilter column={column} title="Admiralty Tac" />
+          </div>
+        ),
         cell: ({ row }) => {
           const tac = row.getValue('admiraltytac') as number | undefined;
           return tac || <span className="text-gray-400">-</span>;
         },
+        filterFn: admiraltyRangeFilter,
+        accessorFn: (row) => {
+          const value = row.admiraltytac || 0;
+          if (value <= 50) return '0-50';
+          if (value <= 100) return '51-100';
+          if (value <= 150) return '101-150';
+          if (value <= 200) return '151-200';
+          return '201+';
+        },
       },
       {
         accessorKey: 'admiraltysci',
-        header: 'Sci',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Sci</span>
+            <ColumnFilter column={column} title="Admiralty Sci" />
+          </div>
+        ),
         cell: ({ row }) => {
           const sci = row.getValue('admiraltysci') as number | undefined;
           return sci || <span className="text-gray-400">-</span>;
+        },
+        filterFn: admiraltyRangeFilter,
+        accessorFn: (row) => {
+          const value = row.admiraltysci || 0;
+          if (value <= 50) return '0-50';
+          if (value <= 100) return '51-100';
+          if (value <= 150) return '101-150';
+          if (value <= 200) return '151-200';
+          return '201+';
         },
       },
 
       {
         accessorKey: 'has_hangar',
-        header: 'Hangar',
+        header: ({ column }) => (
+          <div className="flex items-center gap-2">
+            <span>Hangar</span>
+            <ColumnFilter column={column} title="Hangar" />
+          </div>
+        ),
         cell: ({ row }) => {
           const hasHangar = row.getValue('has_hangar') as boolean;
           const hangars = row.original.hangars || 0;
@@ -310,6 +497,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
             </div>
           );
         },
+        filterFn: hangarFilter,
+        accessorFn: (row) => String(row.hangars || 0),
       },
     ],
     []
@@ -330,6 +519,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    getFacetedMinMaxValues: getFacetedMinMaxValues(),
     initialState: {
       pagination: {
         pageSize: 20,
