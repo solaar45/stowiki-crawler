@@ -12,6 +12,25 @@ class ShipTransformer:
     """Transform and validate ship data."""
     
     @staticmethod
+    def is_valid_ship(raw_data: Dict[str, Any]) -> bool:
+        """Check if raw data represents a valid ship (not a location/concept page).
+        
+        Args:
+            raw_data: Raw data dictionary from scraper
+            
+        Returns:
+            True if this looks like a real ship, False otherwise
+        """
+        # Must have at least Tier OR Type to be considered a ship
+        has_tier = raw_data.get("Tier") is not None
+        has_type = raw_data.get("Type") is not None
+        
+        # Pages with only Ship + Link are likely non-ship pages (no infobox found)
+        has_only_basics = len(raw_data) <= 3  # Ship, Link, Faction
+        
+        return (has_tier or has_type) and not has_only_basics
+    
+    @staticmethod
     def transform_ship(raw_data: Dict[str, Any]) -> Optional[Ship]:
         """Transform raw scraped data into a validated Ship model.
         
@@ -22,6 +41,11 @@ class ShipTransformer:
             Validated Ship instance or None if validation fails
         """
         try:
+            # Skip non-ship pages
+            if not ShipTransformer.is_valid_ship(raw_data):
+                logger.debug(f"Skipping non-ship page: {raw_data.get('Ship', 'Unknown')}")
+                return None
+            
             # Build weapons data
             weapons = None
             if "Fore Weapons" in raw_data or "Aft Weapons" in raw_data:
@@ -82,13 +106,16 @@ class ShipTransformer:
             List of validated Ship instances
         """
         ships = []
+        skipped = 0
         
         for raw_data in raw_data_list:
             ship = ShipTransformer.transform_ship(raw_data)
             if ship:
                 ships.append(ship)
+            else:
+                skipped += 1
         
-        logger.info(f"Successfully transformed {len(ships)}/{len(raw_data_list)} ships")
+        logger.info(f"Successfully transformed {len(ships)}/{len(raw_data_list)} ships (skipped {skipped} non-ships)")
         return ships
     
     @staticmethod
