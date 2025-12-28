@@ -19,3 +19,6 @@ aiomysql==0.2.0
 
 # Async file operations
 aiofiles==24.1.0
+
+# MediaWiki parsing
+mwparserfromhell==0.6.6
