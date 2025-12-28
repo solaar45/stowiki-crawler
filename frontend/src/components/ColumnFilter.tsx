@@ -45,12 +45,59 @@ export function ColumnFilter<TData>({
     }
   }, [isOpen]);
 
-  // Get unique values from the column
+  // Get unique values from the column WITH DYNAMIC FILTERING
+  // This uses getFilteredRowModel() which applies all OTHER column filters,
+  // showing only values that exist in the currently filtered dataset
   const uniqueValues = useMemo(() => {
-    const facetedValues = column.getFacetedUniqueValues();
+    // Get all currently filtered rows (excludes current column's filter)
+    const table = column.getTable();
+    const allRows = table.getCoreRowModel().rows;
+    const currentColumnId = column.id;
+    
+    // Get all active filters except the current column
+    const otherFilters = table.getState().columnFilters.filter(
+      (filter) => filter.id !== currentColumnId
+    );
+    
+    // Apply all filters except the current column to get the base filtered rows
+    let filteredRows = allRows;
+    
+    // Manually apply other column filters
+    otherFilters.forEach((filter) => {
+      const filterColumn = table.getColumn(filter.id);
+      if (filterColumn) {
+        const filterFn = filterColumn.columnDef.filterFn;
+        if (filterFn && typeof filterFn === 'function') {
+          filteredRows = filteredRows.filter((row) =>
+            filterFn(row, filter.id, filter.value, (id) => {
+              const col = table.getColumn(id);
+              return col;
+            })
+          );
+        }
+      }
+    });
+    
+    // Also apply global filter if present
+    const globalFilter = table.getState().globalFilter;
+    if (globalFilter) {
+      const globalFilterFn = table.options.globalFilterFn;
+      if (globalFilterFn) {
+        filteredRows = filteredRows.filter((row) =>
+          globalFilterFn(row, currentColumnId, globalFilter, (id) => {
+            const col = table.getColumn(id);
+            return col;
+          })
+        );
+      }
+    }
+    
+    // Now count unique values from the filtered rows
     const valuesMap = new Map<string, number>();
 
-    facetedValues.forEach((count, value) => {
+    filteredRows.forEach((row) => {
+      const value = row.getValue(currentColumnId);
+      
       // Handle special cases
       let displayValue = String(value);
       
@@ -69,12 +116,11 @@ export function ColumnFilter<TData>({
          }
       }
 
-      // Normalize string values to handle case differences (e.g. BATTLECRUISER vs Battlecruiser)
-      // But keep the first encountered casing as the display key
+      // Normalize string values to handle case differences
       const normalizedKey = displayValue.trim();
       
       const currentCount = valuesMap.get(normalizedKey) || 0;
-      valuesMap.set(normalizedKey, currentCount + count);
+      valuesMap.set(normalizedKey, currentCount + 1);
     });
 
     const values = Array.from(valuesMap.entries()).map(([value, count]) => ({
@@ -242,10 +288,17 @@ export function ColumnFilter<TData>({
               <div className="space-y-0.5">
                 {filteredValues.map((item) => {
                   const isChecked = filterValue.includes(item.value);
+                  const isDisabled = item.count === 0 && !isChecked;
+                  
                   return (
                     <label
                       key={item.value}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors select-none"
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded transition-colors select-none',
+                        isDisabled
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+                      )}
                     >
                       <div
                         className={cn(
@@ -260,7 +313,8 @@ export function ColumnFilter<TData>({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => toggleValue(item.value)}
+                        onChange={() => !isDisabled && toggleValue(item.value)}
+                        disabled={isDisabled}
                         className="sr-only"
                       />
                       <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate" title={item.value}>
