@@ -108,19 +108,21 @@ export function RangeSlider<TData>({
     };
   }, [isOpen]);
 
-    // Handle scroll to close dropdown
+  // Handle scroll to close dropdown - only for scrolling OUTSIDE the dropdown
   useEffect(() => {
-    const handleScroll = () => {
-      if (isOpen) setIsOpen(false);
+    const handleScroll = (e: Event) => {
+      // Only close if scroll happened outside the dropdown
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
     };
     
-    // Only add scroll listener to window if open
     if (isOpen) {
-        window.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('scroll', handleScroll, true);
     }
     
     return () => {
-        window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isOpen]);
 
