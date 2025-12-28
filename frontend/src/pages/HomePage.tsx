@@ -34,14 +34,14 @@ export function HomePage() {
   const currentCount = ships?.length || 0;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="w-[95vw] max-w-[95vw] mx-auto px-4 py-8">
       {/* Header */}
       <header className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
           Star Trek Online Ship Database
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Cargo API · Real-time Data · {totalShips} Ships
+          {totalShips} Ships
         </p>
       </header>
 
