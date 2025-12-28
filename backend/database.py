@@ -12,6 +12,7 @@ import json
 import logging
 import threading
 import time
+import html
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from pathlib import Path
@@ -611,7 +612,8 @@ class ShipDatabase:
             for faction, category in scraper.FACTION_CATEGORIES.items():
                 logger.info(f"Fetching {faction} ship list...")
                 members = scraper.get_category_members(category, limit=1000)
-                wiki_ships.update(members)
+                # Decode HTML entities (e.g., &#039; -> ')
+                wiki_ships.update(html.unescape(name) for name in members)
             
             logger.info(f"Found {len(wiki_ships)} ships on wiki")
             
@@ -704,7 +706,6 @@ class ShipDatabase:
                 for ship_data in ships:
                     result = self.upsert_ship(ship_data)
                     # upsert_ship returns 'created', 'updated', or 'unchanged'
-                    # We need to map these to our stats keys if they differ
                     if result == 'created':
                         stats['added'] += 1
                     elif result == 'updated':
