@@ -607,13 +607,9 @@ class ShipDatabase:
         }
         
         try:
-            # Get all ship names from wiki categories
-            wiki_ships = set()
-            for faction, category in scraper.FACTION_CATEGORIES.items():
-                logger.info(f"Fetching {faction} ship list...")
-                members = scraper.get_category_members(category, limit=1000)
-                # Decode HTML entities (e.g., &#039; -> ')
-                wiki_ships.update(html.unescape(name) for name in members)
+            # Get all ship names from wiki (via Cargo API)
+            logger.info("Fetching ship list from wiki...")
+            wiki_ships = set(scraper.get_category_members(limit=1000))
             
             logger.info(f"Found {len(wiki_ships)} ships on wiki")
             
@@ -687,9 +683,13 @@ class ShipDatabase:
     
     def full_sync(self, scraper):
         """
-        Full sync: Parse all ships from all factions
+        Full sync: Parse all ships from wiki Cargo database
         
         Use this for initial setup or complete refresh.
+        
+        Strategy:
+        1. Get ALL ship names from Cargo (fast, ~1-2 seconds)
+        2. Parse each ship's data individually from Cargo
         """
         start_time = time.time()
         
@@ -698,20 +698,44 @@ class ShipDatabase:
         stats = {'added': 0, 'updated': 0, 'unchanged': 0}
         
         try:
-            for faction in scraper.FACTION_CATEGORIES.keys():
-                logger.info(f"Syncing {faction} ships...")
+            # Get all ship names from Cargo database
+            logger.info("Fetching all ship names from Cargo...")
+            all_ship_names = scraper.get_category_members(limit=1000)
+            
+            logger.info(f"Found {len(all_ship_names)} ships on wiki")
+            
+            # Get current database ship names for comparison
+            db_ships = set(self.get_all_ship_names())
+            logger.info(f"Found {len(db_ships)} ships in database")
+            
+            # Determine which ships are new
+            new_ships = set(all_ship_names) - db_ships
+            logger.info(f"Found {len(new_ships)} new ships to add")
+            
+            # Parse each ship from Cargo
+            for i, ship_name in enumerate(all_ship_names, 1):
+                try:
+                    logger.info(f"Parsing ship {i}/{len(all_ship_names)}: {ship_name}")
+                    
+                    ship_data = scraper.parse_ship_page(ship_name)
+                    
+                    if ship_data:
+                        result = self.upsert_ship(ship_data)
+                        
+                        if result == 'created':
+                            stats['added'] += 1
+                        elif result == 'updated':
+                            stats['updated'] += 1
+                        elif result == 'unchanged':
+                            stats['unchanged'] += 1
+                    else:
+                        logger.warning(f"No data returned for ship: {ship_name}")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to sync ship {ship_name}: {e}", exc_info=True)
                 
-                ships = scraper.get_faction_ships(faction, limit=500)
-                
-                for ship_data in ships:
-                    result = self.upsert_ship(ship_data)
-                    # upsert_ship returns 'created', 'updated', or 'unchanged'
-                    if result == 'created':
-                        stats['added'] += 1
-                    elif result == 'updated':
-                        stats['updated'] += 1
-                    elif result == 'unchanged':
-                        stats['unchanged'] += 1
+                # Small delay to avoid hammering the API
+                time.sleep(0.05)
             
             duration = int(time.time() - start_time)
             
