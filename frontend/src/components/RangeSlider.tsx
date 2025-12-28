@@ -18,13 +18,17 @@ export function RangeSlider<TData>({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Get min and max values from the column
-  const [minValue, maxValue] = useMemo(() => {
+  // Get min and max values from the FILTERED dataset (dynamic filtering)
+  const [minValue, maxValue, hasData] = useMemo(() => {
+    // getFacetedMinMaxValues() already respects other active filters!
     const facetedValues = column.getFacetedMinMaxValues();
-    if (facetedValues) {
-      return [facetedValues[0] ?? 0, facetedValues[1] ?? 100];
+    
+    if (facetedValues && facetedValues[0] !== undefined && facetedValues[1] !== undefined) {
+      return [facetedValues[0], facetedValues[1], true];
     }
-    return [0, 100];
+    
+    // No data available in filtered results
+    return [0, 100, false];
   }, [column]);
 
   // Get current filter value
@@ -38,13 +42,21 @@ export function RangeSlider<TData>({
   const [localMin, setLocalMin] = useState(filterValue[0]);
   const [localMax, setLocalMax] = useState(filterValue[1]);
 
-  // Only update local state when opening the dropdown
+  // Update local state when min/max values change (due to other filters)
   useEffect(() => {
     if (isOpen) {
-      setLocalMin(filterValue[0]);
-      setLocalMax(filterValue[1]);
+      // When opening, reset local values to current filter or available range
+      const currentFilter = column.getFilterValue() as [number, number] | undefined;
+      if (currentFilter) {
+        // Clamp existing filter to new available range
+        setLocalMin(Math.max(currentFilter[0], minValue));
+        setLocalMax(Math.min(currentFilter[1], maxValue));
+      } else {
+        setLocalMin(minValue);
+        setLocalMax(maxValue);
+      }
     }
-  }, [isOpen]); // Removed filterValue from dependencies!
+  }, [isOpen, minValue, maxValue]);
 
   // Update position when opening
   useEffect(() => {
@@ -139,16 +151,22 @@ export function RangeSlider<TData>({
         ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();
-          setIsOpen(!isOpen);
+          if (hasData) {
+            setIsOpen(!isOpen);
+          }
         }}
+        disabled={!hasData}
         className={cn(
-          'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative',
-          hasActiveFilter && 'text-blue-600 dark:text-blue-400'
+          'p-1 rounded transition-colors relative',
+          hasData
+            ? 'hover:bg-gray-200 dark:hover:bg-gray-700'
+            : 'opacity-40 cursor-not-allowed',
+          hasActiveFilter && hasData && 'text-blue-600 dark:text-blue-400'
         )}
-        title={`Filter ${title}`}
+        title={hasData ? `Filter ${title}` : `No data available for ${title}`}
       >
         <Filter className="h-3.5 w-3.5" />
-        {hasActiveFilter && (
+        {hasActiveFilter && hasData && (
           <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-xs flex items-center justify-center">
             1
           </span>
@@ -156,7 +174,7 @@ export function RangeSlider<TData>({
       </button>
 
       {/* Dropdown Portal */}
-      {isOpen && createPortal(
+      {isOpen && hasData && createPortal(
         <div 
           ref={dropdownRef}
           style={{ 
