@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HomePage } from './pages/HomePage';
 import { HistoryPage } from './pages/HistoryPage';
-import { ApiDemo } from './pages/ApiDemo';
 import { ThemeToggle } from './components/ThemeToggle';
 
 const queryClient = new QueryClient();
@@ -33,12 +32,6 @@ function App() {
                     >
                       History
                     </Link>
-                    <Link
-                      to="/api-demo"
-                      className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                    >
-                      API Demo
-                    </Link>
                   </div>
                 </div>
                 <ThemeToggle />
@@ -50,7 +43,6 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/history" element={<HistoryPage />} />
-            <Route path="/api-demo" element={<ApiDemo />} />
           </Routes>
         </div>
       </BrowserRouter>
