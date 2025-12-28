@@ -170,7 +170,7 @@ export function ColumnFilter<TData>({
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors',
+          'p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative',
           hasActiveFilter && 'text-blue-600 dark:text-blue-400'
         )}
         title={`Filter ${title}`}
