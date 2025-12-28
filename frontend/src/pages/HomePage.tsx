@@ -17,7 +17,7 @@ export function HomePage() {
     queryFn: () => api.getShips({
       faction: selectedFaction,
       tier: selectedTier,
-      limit: 500
+      // No limit - load all ships
     }),
   });
 
