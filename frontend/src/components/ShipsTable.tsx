@@ -38,6 +38,39 @@ function splitCommaSeparated(value?: string): string[] {
     .filter(Boolean);
 }
 
+// Format Bridge Officer text
+// Example: "Lieutenant Commander Tactical" -> "3 Tac"
+// Example: "Commander Science-Intelligence" -> "4 Sci-Int"
+function formatBoffText(text: string): string {
+  if (!text) return '';
+  
+  let result = text.trim();
+  
+  // Replace ranks (order matters! Lieutenant Commander before Lieutenant)
+  result = result.replace(/Lieutenant Commander/gi, '3');
+  result = result.replace(/Commander/gi, '4');
+  result = result.replace(/Lieutenant/gi, '2');
+  result = result.replace(/Ensign/gi, '1');
+  
+  // Replace specializations
+  result = result.replace(/Tactical/gi, 'Tac');
+  result = result.replace(/Engineering/gi, 'Eng');
+  result = result.replace(/Science/gi, 'Sci');
+  result = result.replace(/Universal/gi, 'Uni');
+  
+  // Replace specialization types
+  result = result.replace(/Intelligence/gi, 'Int');
+  result = result.replace(/Temporal Operative/gi, 'Tmp');
+  result = result.replace(/Pilot/gi, 'Pil');
+  result = result.replace(/Miracle Worker/gi, 'MW');
+  result = result.replace(/Command/gi, 'Cmd');
+  
+  // Clean up extra spaces
+  result = result.replace(/\s+/g, ' ').trim();
+  
+  return result;
+}
+
 // Normalize faction names for display
 function normalizeFactionName(faction: string): string {
   const mapping: Record<string, string> = {
@@ -116,7 +149,13 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           },
           cell: ({ getValue }) => {
             const value = getValue() as string;
-            return value ? <span className="text-xs">{value}</span> : <span className="text-gray-400">-</span>;
+            if (!value) return <span className="text-gray-400">-</span>;
+            const formatted = formatBoffText(value);
+            return (
+              <span className="text-xs" title={value}>
+                {formatted}
+              </span>
+            );
           },
           enableColumnFilter: false,
           meta: { group: 'boffs' } as any,
