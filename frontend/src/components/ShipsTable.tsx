@@ -341,6 +341,8 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           enableColumnFilter: false,
         },
 
+        
+
         // Defense
         {
           accessorKey: 'hull',
@@ -636,6 +638,217 @@ export function ShipsTable({ ships }: ShipsTableProps) {
           filterFn: hangarFilter,
           accessorFn: (row) => String(row.hangars || 0),
         },
+        // New columns from backend bulk fields (appended to the end)
+        
+        {
+          accessorKey: 'released',
+          header: 'Released',
+          cell: ({ row }) => {
+            const r = row.getValue('released') as string | undefined;
+            return r ? <span className="text-sm">{r}</span> : <span className="text-gray-400">-</span>;
+          },
+          enableColumnFilter: false,
+        },
+        {
+          accessorKey: 'ranklevel',
+          header: ({ column, table }) => (
+            <div className="flex items-center gap-2">
+              <span>Rank</span>
+              <ColumnFilter column={column} table={table} title="Rank" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const r = row.getValue('ranklevel') as number | undefined;
+            return r || <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+        },
+        {
+          accessorKey: 'powerall',
+          header: ({ column, table }) => (
+            <div className="flex items-center gap-2">
+              <span>Power</span>
+              <RangeSlider column={column} table={table} title="Power" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powerall') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+          meta: { group: 'defense' } as any,
+        },
+        {
+          accessorKey: 'devices',
+          header: ({ column, table }) => (
+            <div className="flex items-center gap-2">
+              <span>Devices</span>
+              <ColumnFilter column={column} table={table} title="Devices" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const dev = row.getValue('devices') as string[] | string | undefined;
+            if (!dev || (Array.isArray(dev) && dev.length === 0)) return <span className="text-gray-400">-</span>;
+            return Array.isArray(dev) ? dev.join(', ') : String(dev);
+          },
+          filterFn: (row, columnId, filterValue: string[]) => {
+            const dev = row.getValue(columnId) as string[] | string | undefined;
+            if (!dev) return filterValue.includes('N/A');
+            const arr = Array.isArray(dev) ? dev : String(dev).split(/[,;]/).map(s=>s.trim()).filter(Boolean);
+            return arr.some(d => filterValue.includes(d));
+          },
+        },
+        {
+          accessorKey: 'experimental',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Experimental</span>
+              <ColumnFilter column={column} table={table} title="Experimental" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const v = row.getValue('experimental') as string | number | undefined;
+            if (!v) return <span className="text-gray-400">-</span>;
+            return <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">{String(v)}</span>;
+          },
+          enableColumnFilter: true,
+        },
+        {
+          accessorKey: 'secdeflector',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Sec Deflector</span>
+              <ColumnFilter column={column} table={table} title="SecDeflector" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const v = row.getValue('secdeflector');
+            return v ? <span className="text-sm">{String(v)}</span> : <span className="text-gray-400">-</span>;
+          },
+          enableColumnFilter: true,
+        },
+        {
+          accessorKey: 'fc',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>FC</span>
+              <ColumnFilter column={column} table={table} title="FC" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const v = row.getValue('fc') as number | string | undefined;
+            return v != null ? <span>{v}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+        },
+        // power columns
+        {
+          accessorKey: 'powerweapons',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Power W</span>
+              <RangeSlider column={column} table={table} title="Power Weapons" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powerweapons') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+        },
+        {
+          accessorKey: 'powershields',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Power S</span>
+              <RangeSlider column={column} table={table} title="Power Shields" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powershields') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+        },
+        {
+          accessorKey: 'powerengines',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Power E</span>
+              <RangeSlider column={column} table={table} title="Power Engines" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powerengines') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+        },
+        {
+          accessorKey: 'powerauxiliary',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Power Aux</span>
+              <RangeSlider column={column} table={table} title="Power Auxiliary" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powerauxiliary') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+        },
+        {
+          accessorKey: 'powerboost',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Power Boost</span>
+              <RangeSlider column={column} table={table} title="Power Boost" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const p = row.getValue('powerboost') as number | undefined;
+            return p != null ? <span>{p}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: rangeFilter,
+        },
+        {
+          accessorKey: 'uniconsole',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>Uni Console</span>
+              <ColumnFilter column={column} table={table} title="UniConsole" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const v = row.getValue('uniconsole');
+            return v != null ? <span>{String(v)}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+        },
+        {
+          accessorKey: 't5uconsole',
+          header: ({ column }) => (
+            <div className="flex items-center gap-2">
+              <span>T5U Console</span>
+              <ColumnFilter column={column} table={table} title="T5UConsole" />
+            </div>
+          ),
+          cell: ({ row }) => {
+            const v = row.getValue('t5uconsole');
+            return v != null ? <span>{String(v)}</span> : <span className="text-gray-400">-</span>;
+          },
+          filterFn: arrayIncludesFilter,
+        },
+        {
+          accessorKey: 'upgradecost',
+          header: 'Upgrade Cost',
+          cell: ({ row }) => {
+            const v = row.getValue('upgradecost') as string | undefined;
+            return v ? <span className="text-sm">{v}</span> : <span className="text-gray-400">-</span>;
+          },
+          enableColumnFilter: false,
+        },
       ];
     },
     [maxBoffSlots]
@@ -666,7 +879,6 @@ export function ShipsTable({ ships }: ShipsTableProps) {
   });
 
   // Count BOFF sub-columns per BOFF slot (3 per slot)
-  const totalBoffColumns = maxBoffSlots * 3;
 
   // Check if any filters are active
   const hasActiveFilters = columnFilters.length > 0 || globalFilter !== '';
@@ -721,119 +933,7 @@ export function ShipsTable({ ships }: ShipsTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
-              {/* Top group header row */}
-              <tr>
-                {/* Sticky first column placeholder to keep alignment with Ship Name */}
-                <th
-                  colSpan={1}
-                  className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider sticky left-0 z-20 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700"
-                />
-
-                {/* Ungrouped info columns: Faction, Tier, Type, Cost */}
-                <th colSpan={4} className="px-4 py-2" />
-
-                <th
-                  colSpan={3}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.defense
-                  )}
-                >
-                  Defense
-                </th>
-                <th
-                  colSpan={3}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.weapons
-                  )}
-                >
-                  Weapons
-                </th>
-                <th
-                  colSpan={3}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.mobility
-                  )}
-                >
-                  Mobility
-                </th>
-                <th
-                  colSpan={3}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.consoles
-                  )}
-                >
-                  Consoles
-                </th>
-
-                {/* Bridge Officers (all BOFF sub-columns) */}
-                <th
-                  colSpan={totalBoffColumns}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.boffs
-                  )}
-                >
-                  Bridge Officers
-                </th>
-
-                {/* Abilities (not grouped) */}
-                <th colSpan={1} className="px-4 py-2" />
-
-                <th
-                  colSpan={3}
-                  className={cn(
-                    'px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-x-2 border-gray-300 dark:border-gray-700',
-                    groupHeaderBg.admiralty
-                  )}
-                >
-                  Admiralty
-                </th>
-
-                {/* Hangar */}
-                <th colSpan={1} className="px-4 py-2" />
-              </tr>
-
-              {/* BOFF slot header row */}
-              <tr>
-                {/* Sticky first column + ungrouped columns */}
-                <th colSpan={1} className="px-4 py-1 sticky left-0 z-20 bg-gray-50 dark:bg-gray-900 border-r-2 border-gray-300 dark:border-gray-700" />
-                <th colSpan={4} className="px-4 py-1" />
-
-                {/* Defense, Weapons, Mobility, Consoles groups */}
-                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.defense)} />
-                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.weapons)} />
-                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.mobility)} />
-                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.consoles)} />
-
-                {/* BOFF #x headers (each spanning 3 sub-columns) */}
-                {Array.from({ length: maxBoffSlots }, (_, i) => (
-                  <th
-                    key={`boff-slot-${i}`}
-                    colSpan={3}
-                    className={cn(
-                      'px-4 py-1 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider',
-                      groupHeaderBg.boffs,
-                      i === 0 && 'border-l-2 border-gray-300 dark:border-gray-700',
-                      i === maxBoffSlots - 1 && 'border-r-2 border-gray-300 dark:border-gray-700'
-                    )}
-                  >
-                    BOFF #{i + 1}
-                  </th>
-                ))}
-
-                {/* Abilities */}
-                <th colSpan={1} className="px-4 py-1" />
-
-                {/* Admiralty */}
-                <th colSpan={3} className={cn('px-4 py-1 border-x-2 border-gray-300 dark:border-gray-700', groupHeaderBg.admiralty)} />
-
-                {/* Hangar */}
-                <th colSpan={1} className="px-4 py-1" />
-              </tr>
+              {/* Header groups are rendered dynamically by react-table below */}
 
               {/* Column header row */}
               {table.getHeaderGroups().map((headerGroup) => (
