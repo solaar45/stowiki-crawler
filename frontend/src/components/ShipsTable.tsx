@@ -11,15 +11,14 @@ import {
 } from '@tanstack/react-table';
 import { useState, useMemo } from 'react';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Check, X, ExternalLink } from 'lucide-react';
-import { cn, formatDate, formatNumber } from '../lib/utils';
-import type { Ship } from '../types/ship';
+import { cn } from '../lib/utils';
+import type { Ship } from '../lib/api';
 
 interface ShipsTableProps {
   ships: Ship[];
-  selectedFaction: string | null;
 }
 
-export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
+export function ShipsTable({ ships }: ShipsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -31,7 +30,7 @@ export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-primary-600 dark:hover:text-primary-400"
+            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
             Ship Name
             <ArrowUpDown className="h-4 w-4" />
@@ -39,10 +38,10 @@ export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
         ),
         cell: ({ row }) => (
           <a
-            href={row.original.link}
+            href={row.original.wiki_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-primary-600 dark:text-primary-400 hover:underline font-medium"
+            className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
           >
             {row.getValue('name')}
             <ExternalLink className="h-3 w-3" />
@@ -50,46 +49,64 @@ export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
         ),
       },
       {
-        accessorKey: 'faction',
+        accessorKey: 'factionlede',
         header: 'Faction',
-        cell: ({ row }) => (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-            {row.getValue('faction') || 'N/A'}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const faction = row.getValue('factionlede') as string | undefined;
+          if (!faction) return <span className="text-gray-400">N/A</span>;
+          return (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+              {faction}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'tier',
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-primary-600 dark:hover:text-primary-400"
+            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
             Tier
             <ArrowUpDown className="h-4 w-4" />
           </button>
         ),
-        cell: ({ row }) => formatNumber(row.getValue('tier')),
+        cell: ({ row }) => {
+          const tier = row.getValue('tier') as number | undefined;
+          return tier ? tier : <span className="text-gray-400">N/A</span>;
+        },
       },
       {
         accessorKey: 'type',
         header: 'Type',
+        cell: ({ row }) => {
+          const types = row.getValue('type') as string[];
+          if (!types || types.length === 0) return <span className="text-gray-400">N/A</span>;
+          return types.join(', ');
+        },
       },
       {
-        accessorKey: 'weapons.fore',
+        accessorKey: 'fore',
         header: 'Fore',
-        cell: ({ row }) => formatNumber(row.original.weapons?.fore || null),
+        cell: ({ row }) => {
+          const fore = row.getValue('fore') as number | undefined;
+          return fore ? fore : <span className="text-gray-400">-</span>;
+        },
       },
       {
-        accessorKey: 'weapons.aft',
+        accessorKey: 'aft',
         header: 'Aft',
-        cell: ({ row }) => formatNumber(row.original.weapons?.aft || null),
+        cell: ({ row }) => {
+          const aft = row.getValue('aft') as number | undefined;
+          return aft ? aft : <span className="text-gray-400">-</span>;
+        },
       },
       {
-        accessorKey: 'weapons.can_equip_dual_cannons',
+        accessorKey: 'can_use_cannons',
         header: 'Dual Cannons',
         cell: ({ row }) => {
-          const canEquip = row.original.weapons?.can_equip_dual_cannons;
+          const canEquip = row.getValue('can_use_cannons') as boolean;
           return (
             <div className="flex justify-center">
               {canEquip ? (
@@ -102,38 +119,66 @@ export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
         },
       },
       {
-        accessorKey: 'stats.max_hull',
+        accessorKey: 'hull',
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-primary-600 dark:hover:text-primary-400"
+            className="flex items-center gap-2 font-semibold hover:text-blue-600 dark:hover:text-blue-400"
           >
-            Max Hull
+            Hull
             <ArrowUpDown className="h-4 w-4" />
           </button>
         ),
-        cell: ({ row }) => formatNumber(row.original.stats?.max_hull || null),
-      },
-      {
-        accessorKey: 'stats.turn_rate',
-        header: 'Turn Rate',
         cell: ({ row }) => {
-          const rate = row.original.stats?.turn_rate;
-          return rate ? rate.toFixed(1) : 'N/A';
+          const hull = row.getValue('hull') as number | undefined;
+          return hull ? hull.toLocaleString() : <span className="text-gray-400">-</span>;
         },
       },
       {
-        accessorKey: 'released',
-        header: ({ column }) => (
-          <button
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            className="flex items-center gap-2 font-semibold hover:text-primary-600 dark:hover:text-primary-400"
-          >
-            Released
-            <ArrowUpDown className="h-4 w-4" />
-          </button>
-        ),
-        cell: ({ row }) => formatDate(row.getValue('released')),
+        accessorKey: 'turnrate',
+        header: 'Turn Rate',
+        cell: ({ row }) => {
+          const rate = row.getValue('turnrate') as number | undefined;
+          return rate ? rate.toFixed(1) : <span className="text-gray-400">-</span>;
+        },
+      },
+      {
+        accessorKey: 'total_consoles',
+        header: 'Consoles',
+        cell: ({ row }) => {
+          const total = row.getValue('total_consoles') as number;
+          const tac = row.original.consolestac || 0;
+          const eng = row.original.consoleseng || 0;
+          const sci = row.original.consolessci || 0;
+          
+          if (total === 0) return <span className="text-gray-400">-</span>;
+          
+          return (
+            <span title={`TAC: ${tac}, ENG: ${eng}, SCI: ${sci}`}>
+              {total} ({tac}/{eng}/{sci})
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'has_hangar',
+        header: 'Hangar',
+        cell: ({ row }) => {
+          const hasHangar = row.getValue('has_hangar') as boolean;
+          const hangars = row.original.hangars || 0;
+          
+          return (
+            <div className="flex justify-center">
+              {hasHangar ? (
+                <span className="text-green-600 dark:text-green-400" title={`${hangars} hangar bay(s)`}>
+                  ✓ ({hangars})
+                </span>
+              ) : (
+                <X className="h-5 w-5 text-gray-400" />
+              )}
+            </div>
+          );
+        },
       },
     ],
     []
@@ -170,7 +215,7 @@ export function ShipsTable({ ships, selectedFaction }: ShipsTableProps) {
           value={globalFilter ?? ''}
           onChange={(e) => setGlobalFilter(e.target.value)}
           placeholder="Search ships..."
-          className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
