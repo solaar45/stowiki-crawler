@@ -10,6 +10,24 @@ from logger import setup_logger
 logger = setup_logger(__name__)
 
 
+def parse_datetime_safely(dt_str: str) -> datetime:
+    """Parse datetime string handling both naive and timezone-aware formats.
+    
+    Args:
+        dt_str: ISO format datetime string
+        
+    Returns:
+        Timezone-aware datetime object
+    """
+    dt = datetime.fromisoformat(dt_str)
+    
+    # If naive, assume UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    return dt
+
+
 class JSONStorage:
     """JSON file storage for ships with metadata tracking."""
 
@@ -121,7 +139,8 @@ class JSONStorage:
             return True
         
         try:
-            last_scraped = datetime.fromisoformat(metadata["last_scraped"])
+            # Handle both naive and timezone-aware datetimes
+            last_scraped = parse_datetime_safely(metadata["last_scraped"])
             age = datetime.now(timezone.utc) - last_scraped
             age_hours = age.total_seconds() / 3600
             

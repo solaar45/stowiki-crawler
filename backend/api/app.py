@@ -38,6 +38,24 @@ logger.info("Using MediaWiki API scraper (10-15x faster!)")
 is_scraping = False
 
 
+def parse_datetime_safely(dt_str: str) -> datetime:
+    """Parse datetime string handling both naive and timezone-aware formats.
+    
+    Args:
+        dt_str: ISO format datetime string
+        
+    Returns:
+        Timezone-aware datetime object
+    """
+    dt = datetime.fromisoformat(dt_str)
+    
+    # If naive, assume UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    return dt
+
+
 def run_async(coro):
     """Helper to run async functions in Flask routes."""
     loop = asyncio.new_event_loop()
@@ -156,8 +174,8 @@ def get_ships_metadata() -> Response:
         metadata = run_async(storage.get_metadata())
         
         if metadata:
-            # Calculate age
-            last_scraped = datetime.fromisoformat(metadata["last_scraped"])
+            # Calculate age - handle both naive and timezone-aware datetimes
+            last_scraped = parse_datetime_safely(metadata["last_scraped"])
             age_hours = (datetime.now(timezone.utc) - last_scraped).total_seconds() / 3600
             
             return jsonify({
