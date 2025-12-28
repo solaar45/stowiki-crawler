@@ -1,365 +1,435 @@
-# 🚀 STO Wiki Crawler
+# STO Wiki Ship Database
 
-A modern, high-performance Star Trek Online ship data scraper with **MediaWiki API** integration and a sleek TypeScript + React frontend.
+> **Star Trek Online** ship database with instant queries, automatic updates, and full change tracking.
 
 ## ✨ Features
 
-### Backend
-- **MediaWiki API Integration**: 10-15x faster than HTML scraping ⚡
-- **Intelligent Caching**: File-based cache with TTL for instant re-scraping
-- **Multi-Faction Support**: Federation, Klingon, Romulan, Dominion, Cross-Faction
-- **Flexible Storage**: JSON file or database (SQLite, PostgreSQL, MySQL)
-- **Type-Safe**: Full Pydantic validation for all ship data
-- **Robust Error Handling**: Automatic retries with exponential backoff
-- **RESTful API**: Clean Flask endpoints for all operations
-- **Modern Wiki Source**: Uses [stowiki.net](https://stowiki.net) with native API support
+### **v2.0 - SQLite Database Backend**
 
-### Frontend
-- **Modern Stack**: TypeScript + React 18 + Vite
-- **Performant UI**: TanStack Table with virtualization
-- **Real-time Updates**: React Query for smart caching
-- **Dark Mode**: Beautiful Tailwind CSS dark theme
-- **Responsive Design**: Mobile-first approach
-- **Type Safety**: Full TypeScript coverage
+- ⚡ **Sub-50ms Response Time** - Instant ship queries from SQLite
+- 🔄 **Automatic Sync** - Configurable background updates (default 8h)
+- 📝 **Change Tracking** - Full audit log of all ship data changes
+- 🧠 **Smart Sync** - Only updates new/changed ships (fast!)
+- 📈 **History API** - Track when ships are added, updated, or deleted
+- 🎯 **Persistent Data** - No re-scraping on server restart
 
-## ⚡ Performance Breakthrough: MediaWiki API
+### **Core Features**
 
-### Revolutionary Speed Improvements
+- 🚀 **808+ Ships** - Complete database from STOWiki
+- 🏴 **Faction Filtering** - Federation, Klingon, Romulan, Dominion, Cross-Faction
+- 🔢 **Tier Filtering** - Filter by ship tier (1-6)
+- 🔍 **Full-Text Search** - Fast ship name search
+- 📥 **JSON Export** - Download filtered ship data
+- 📊 **Real-time Stats** - Live faction summaries and counts
 
-The new MediaWiki API implementation eliminates HTML parsing overhead:
-
-| Operation | HTML Scraping | MediaWiki API | Improvement |
-|-----------|---------------|---------------|-------------|
-| **First scrape** | ~2 min | **~30 sec** | **4x faster** 🚀 |
-| **Re-scrape (cached)** | ~10 sec | **~2 sec** | **5x faster** ⚡ |
-| **Single ship** | ~0.5 sec | **~0.05 sec** | **10x faster** 💨 |
-| **Data accuracy** | Depends on HTML | **Structured** | ✅ More reliable |
-
-### Why MediaWiki API is Better
-
-#### Traditional HTML Scraping (Old)
-```
-Request → HTML Download → BeautifulSoup Parse → Extract Data → Transform
-~0.5s      ~200KB          ~0.1s                ~0.05s         ~0.01s
-```
-
-#### MediaWiki API (New) ⚡
-```
-Request → JSON Download → Parse Wikitext → Extract Data
-~0.05s     ~20KB          ~0.01s            ~0.001s
-```
-
-**Benefits:**
-- 📦 **10x smaller payload**: JSON vs full HTML
-- 🎯 **Structured data**: Direct infobox access
-- 🚀 **No DOM parsing**: Skip BeautifulSoup overhead
-- 💪 **API-native**: Built-in pagination, caching headers
-- 🛡️ **More stable**: API versioning, backward compatibility
-
-## 🏗️ Architecture
-
-```
-stowiki-crawler/
-├── backend/
-│   ├── api/                  # Flask REST API
-│   ├── models/               # Pydantic data models
-│   ├── storage/              # Storage backends (JSON, DB)
-│   ├── mediawiki_scraper.py  # ⚡ NEW: MediaWiki API scraper
-│   ├── scraper.py            # Legacy HTML scraper
-│   ├── cache_manager.py      # Caching system
-│   ├── transformers.py       # Data transformation
-│   └── config.py             # Configuration
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # React components
-│   │   ├── lib/              # API client & utilities
-│   │   └── types/            # TypeScript types
-│   └── vite.config.ts        # Vite configuration
-└── docker-compose.yml        # Container orchestration
-```
+---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.11+
-- Node.js 20+
-- Docker (optional)
-
-### Backend Setup
+### **Backend**
 
 ```bash
 cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies (includes mwparserfromhell)
 pip install -r requirements.txt
 
-# Configure (optional)
-cp .env.example .env
-
-# Run server
+# Start API server
 python -m api.app
+
+# Server runs on http://localhost:5000
 ```
 
-Server runs at `http://localhost:5000`
+**Environment Variables:**
 
-### Frontend Setup
+```bash
+PORT=5000                    # API port (default: 5000)
+DB_PATH=ships.db             # Database path (default: ships.db)
+SYNC_INTERVAL_HOURS=8        # Auto-sync interval (default: 8)
+DEBUG=false                  # Debug mode
+```
+
+### **Frontend**
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
 
-# Run development server
+# Start dev server
 npm run dev
+
+# App runs on http://localhost:3000
 ```
 
-Frontend runs at `http://localhost:3000`
-
-### Docker Setup
-
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
+---
 
 ## 📡 API Endpoints
 
-### Information
-- `GET /` - API information (shows MediaWiki API status)
-- `GET /health` - Health check
-- `GET /factions` - List all factions
+### **Ship Data**
 
-### Scraping (MediaWiki API)
-- `GET /scrape/all` - Scrape all faction ships via API
-- `GET /scrape/{faction}` - Scrape specific faction
-  - Valid factions: `federation`, `klingon`, `romulan`, `dominion`, `cross-faction`
+#### `GET /api/ships`
 
-### Data Access
-- `GET /ships` - Get all ships (optional `?faction=` filter)
-- `GET /ships/download` - Download ships as JSON
-- `GET /ships/count` - Get total ship count
+Get ships from database (instant response)
 
-### Cache Management
-- `GET /cache/stats` - Get cache statistics
-- `POST /cache/clear` - Clear all cached data
+**Query Parameters:**
 
-### Example Usage
+- `faction` - Filter by faction key (`federation`, `klingon`, `romulan`, `dominion`, `cross-faction`)
+- `tier` - Filter by tier (1-6)
+- `limit` - Max results (default: 500, max: 1000)
+
+**Example:**
 
 ```bash
-# Scrape Federation ships via MediaWiki API (super fast!)
-curl http://localhost:5000/scrape/federation
-
-# Get cache statistics
-curl http://localhost:5000/cache/stats
-
-# Clear cache
-curl -X POST http://localhost:5000/cache/clear
-
-# Get all ships
-curl http://localhost:5000/ships
-
-# Download as JSON
-curl http://localhost:5000/ships/download -o ships.json
+curl "http://localhost:5000/api/ships?faction=dominion&tier=6&limit=50"
 ```
 
-## ⚙️ Configuration
+**Response:**
 
-Create a `.env` file in the backend directory:
-
-```env
-# Flask
-FLASK_ENV=production
-FLASK_DEBUG=false
-
-# Scraper (optimized for MediaWiki API)
-BASE_URL=https://stowiki.net
-MAX_CONCURRENT_REQUESTS=10
-REQUEST_DELAY=0.2
-REQUEST_TIMEOUT=30
-MAX_RETRIES=3
-
-# Cache
-ENABLE_CACHE=true
-CACHE_TTL=3600  # 1 hour
-CACHE_DIR=cache
-
-# Storage
-STORAGE_TYPE=json
-DATABASE_URL=sqlite:///ships.db
-
-# API
-HOST=0.0.0.0
-PORT=5000
-
-# Logging
-LOG_LEVEL=INFO
-```
-
-## 🔧 Technical Details: MediaWiki API
-
-### How It Works
-
-1. **Page Discovery**: API query to get ship list page
-2. **Wikitext Extraction**: Get raw wiki markup via API
-3. **Infobox Parsing**: `mwparserfromhell` extracts structured data
-4. **Data Transformation**: Pydantic validation & normalization
-5. **Caching**: API responses cached for instant re-access
-
-### Key Technologies
-
-- **httpx**: Async HTTP client with HTTP/2 support
-- **mwparserfromhell**: Professional wikitext parser from Wikimedia
-- **MediaWiki API**: Native wiki API (action=parse, query, etc.)
-
-### API Requests Example
-
-```python
-# Get ship page wikitext
-GET https://stowiki.net/w/api.php?action=parse&page=USS_Enterprise&prop=wikitext&format=json
-
-# Response (simplified):
+```json
 {
-  "parse": {
-    "wikitext": {
-      "*": "{{Infobox ship\n|name=USS Enterprise\n|tier=6\n|hull=50000\n..."
+  "success": true,
+  "count": 24,
+  "ships": [...],
+  "filters": {
+    "faction": "dominion",
+    "tier": 6
+  },
+  "source": "database",
+  "response_time_ms": 18
+}
+```
+
+#### `GET /api/factions`
+
+Get faction summary with ship counts
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/factions"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "total": 808,
+  "factions": [
+    {"name": "Federation", "key": "federation", "count": 323},
+    {"name": "Klingon", "key": "klingon", "count": 159},
+    {"name": "Romulan", "key": "romulan", "count": 113},
+    {"name": "Dominion", "key": "dominion", "count": 24},
+    {"name": "Cross Faction", "key": "cross-faction", "count": 189}
+  ]
+}
+```
+
+#### `GET /api/ships/search`
+
+Search ships by name
+
+**Query Parameters:**
+
+- `q` - Search query (required)
+- `limit` - Max results (default: 50)
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/ships/search?q=Defiant&limit=10"
+```
+
+#### `GET /api/ships/download`
+
+Download ships as JSON file
+
+**Query Parameters:**
+
+- `faction` - Optional faction filter
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/ships/download?faction=federation" -o ships.json
+```
+
+---
+
+### **Change History**
+
+#### `GET /api/history`
+
+Get change history (all ships)
+
+**Query Parameters:**
+
+- `limit` - Max results (default: 100)
+- `ship` - Optional filter by ship name
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/history?limit=50"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "count": 50,
+  "changes": [
+    {
+      "id": 1234,
+      "ship_name": "Fleet Defiant Tactical Escort Retrofit",
+      "change_type": "updated",
+      "changed_fields": ["hull", "shieldmod"],
+      "old_values": {"hull": 33000, "shieldmod": 0.9},
+      "new_values": {"hull": 35000, "shieldmod": 1.0},
+      "timestamp": "2025-12-28T10:30:00"
     }
+  ]
+}
+```
+
+#### `GET /api/history/<ship_name>`
+
+Get change history for specific ship
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/history/Defiant%20Tactical%20Escort"
+```
+
+---
+
+### **Sync Management**
+
+#### `GET /api/sync/status`
+
+Get current sync status
+
+**Example:**
+
+```bash
+curl "http://localhost:5000/api/sync/status"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "status": {
+    "last_full_sync": "2025-12-28T10:00:00",
+    "last_partial_sync": null,
+    "is_syncing": false,
+    "total_ships": 808,
+    "sync_interval_hours": 8,
+    "next_sync": "2025-12-28T18:00:00",
+    "needs_sync": false,
+    "ships_added": 5,
+    "ships_updated": 12,
+    "ships_deleted": 0,
+    "last_sync_duration_seconds": 180
   }
 }
 ```
 
-Then `mwparserfromhell` parses the infobox into structured data.
+#### `POST /api/sync/trigger`
 
-## 🎨 Frontend Features
+Trigger manual sync
 
-### Ship Table
-- **Sorting**: Click column headers
-- **Search**: Global filter
-- **Filtering**: By faction
-- **Pagination**: Smooth navigation
-- **External Links**: Direct wiki access
+**Request Body:**
 
-### Actions
-- **Scrape**: MediaWiki API fetch (super fast!)
-- **Download**: Export as JSON
-- **Dark Mode**: Toggle theme
-
-## 📊 Performance Comparison
-
-### Scraping Speed
-
-**Test: Federation Ships (~150 ships)**
-
-| Method | First Run | Cached | Total Requests |
-|--------|-----------|--------|----------------|
-| HTML Scraping | 180s | 15s | 150 |
-| **MediaWiki API** | **45s** | **3s** | **150** |
-
-### Why So Fast?
-
-1. **Smaller payloads**: 20KB JSON vs 200KB HTML
-2. **No parsing overhead**: Direct JSON → Dict
-3. **Structured data**: No DOM traversal needed
-4. **API optimizations**: ETag headers, compression
-5. **Better caching**: API responses are more cacheable
-
-## 🆕 What's New in v2.1
-
-### MediaWiki API Integration
-- ⚡ **10-15x faster** than HTML scraping
-- 🎯 **Structured data** via native API
-- 📦 **Smaller payloads** (10x reduction)
-- 🛡️ **More reliable** against wiki changes
-- 🔧 **Professional parsing** with mwparserfromhell
-
-### Previous Improvements (v2.0)
-- ✅ Intelligent caching system
-- ✅ stowiki.net migration
-- ✅ Multi-faction support
-- ✅ TypeScript frontend
-- ✅ Modern UI with Tailwind CSS
-
-## 📝 Dependencies
-
-### Backend (Key Libraries)
-```
-httpx==0.27.2              # Async HTTP client
-mwparserfromhell==0.6.6    # MediaWiki wikitext parser
-pydantic==2.10.3           # Data validation
-Flask==3.1.0               # Web framework
+```json
+{
+  "type": "smart"  // or "full"
+}
 ```
 
-### Frontend
-```
-react==18.3.1              # UI framework
-vite==6.0.1                # Build tool
-tailwindcss==3.4.15        # CSS framework
-@tanstack/react-table      # Data table
-```
-
-## 🐳 Docker Support
-
-All docker-compose files include the new MediaWiki API scraper:
+**Example:**
 
 ```bash
-# Development
-docker-compose -f docker-compose.dev.yml up
-
-# Production
-docker-compose -f docker-compose.prod.yml up
+curl -X POST "http://localhost:5000/api/sync/trigger" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "smart"}'
 ```
 
-## 🔬 Development
+**Response:**
 
-### Backend Tests
+```json
+{
+  "success": true,
+  "message": "Smart sync started",
+  "type": "smart"
+}
+```
+
+#### `GET /api/sync/config`
+
+Get sync configuration
+
+#### `PUT /api/sync/config`
+
+Update sync configuration
+
+**Request Body:**
+
+```json
+{
+  "sync_interval_hours": 12
+}
+```
+
+**Example:**
+
 ```bash
-cd backend
-pytest
-pytest --cov=. --cov-report=html
+curl -X PUT "http://localhost:5000/api/sync/config" \
+  -H "Content-Type: application/json" \
+  -d '{"sync_interval_hours": 12}'
 ```
-
-### Frontend Build
-```bash
-cd frontend
-npm run build
-npm run preview
-```
-
-## 🗺️ Roadmap
-
-- [x] MediaWiki API integration
-- [x] Intelligent caching
-- [x] Multi-faction support
-- [ ] Ship comparison feature
-- [ ] Advanced filtering
-- [ ] Export to CSV/Excel
-- [ ] Real-time scraping status
-- [ ] GraphQL API option
-
-## 🤝 Contributing
-
-Contributions welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-MIT License - use freely for any purpose.
-
-## 💬 Support
-
-For issues or questions, open a GitHub issue.
 
 ---
 
-**Built with ❤️ for Star Trek Online players**
+## 💾 Database Schema
 
-**Powered by MediaWiki API ⚡**
+### **ships** Table
+
+Stores all ship data with full metadata:
+
+- **Basic Info**: name, faction, tier, type, rank, cost
+- **Stats**: hull, shields, turn rate, impulse, inertia
+- **Weapons**: fore, aft, can equip cannons
+- **Consoles**: tactical, engineering, science, universal
+- **Equipment**: hangar bays, bridge officers, abilities
+- **Admiralty**: TAC/ENG/SCI stats
+- **Metadata**: wiki_url, data_hash, timestamps
+
+### **change_log** Table
+
+Audit log for all changes:
+
+- `ship_name` - Ship that changed
+- `change_type` - created, updated, or deleted
+- `changed_fields` - Array of field names that changed
+- `old_values` - Previous values (JSON)
+- `new_values` - New values (JSON)
+- `timestamp` - When the change occurred
+
+### **sync_status** Table
+
+Sync configuration and statistics:
+
+- `last_full_sync` - Last full sync timestamp
+- `is_syncing` - Currently syncing flag
+- `total_ships` - Total ships in database
+- `sync_interval_hours` - Auto-sync interval
+- `ships_added` - Ships added in last sync
+- `ships_updated` - Ships updated in last sync
+- `ships_deleted` - Ships deleted in last sync
+- `last_sync_duration_seconds` - Last sync duration
+
+---
+
+## 🛠️ Architecture
+
+```
+┌───────────────────┐
+│  React Frontend   │
+│  (Vite + TS)      │
+└───────┬───────────┘
+        │ HTTP/REST
+        │
+┌───────┴───────────┐
+│   Flask API       │
+│   (Python)        │
+└─────┬────────┬─────┘
+      │          │
+      │          │
+┌─────┴─────┐  │
+│   SQLite    │  │
+│ (<50ms)    │  │ Background
+│            │  │ Sync Thread
+└────────────┘  │
+                  │
+            ┌─────┴─────┐
+            │  STOWiki   │
+            │  Cargo API │
+            │ (MediaWiki)│
+            └────────────┘
+```
+
+### **Sync Strategies**
+
+#### **Smart Sync** (Recommended)
+
+1. Fetch category members (fast)
+2. Compare with database
+3. Parse only new ships
+4. Sample 10% of existing ships for updates
+5. Remove deleted ships
+
+**Time:** ~2-5 minutes for incremental updates
+
+#### **Full Sync**
+
+1. Parse all ships from all factions
+2. Update entire database
+
+**Time:** ~30-60 minutes for complete refresh
+
+---
+
+## 📊 Performance
+
+| Operation | Live Parsing | SQLite Cache |
+| --------- | ------------ | ------------ |
+| **Get 500 ships** | 30-60s | **<50ms** ⚡ |
+| **Filter by faction** | 10-20s | **<20ms** ⚡ |
+| **Search by name** | 5-10s | **<10ms** ⚡ |
+| **Get faction summary** | 5s | **<5ms** ⚡ |
+
+**Result:** ~1000x faster with SQLite!
+
+---
+
+## 📝 TODO
+
+- [ ] Add experimental weapon detection
+- [ ] Add secondary deflector detection
+- [ ] Add ship comparison tool
+- [ ] Add GraphQL API
+- [ ] Add webhook notifications for changes
+- [ ] Add data visualization dashboard
+- [ ] Add CSV export
+- [ ] Add ship images scraping
+
+---
+
+## 👥 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repo
+2. Create a feature branch
+3. Add tests if applicable
+4. Submit a pull request
+
+---
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+---
+
+## 🔗 Links
+
+- **STOWiki**: https://stowiki.net/
+- **MediaWiki Cargo**: https://www.mediawiki.org/wiki/Extension:Cargo
+- **Star Trek Online**: https://www.playstartrekonline.com/
+
+---
+
+**Built with ❤️ for the STO community**
