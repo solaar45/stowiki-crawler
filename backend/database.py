@@ -703,7 +703,14 @@ class ShipDatabase:
                 
                 for ship_data in ships:
                     result = self.upsert_ship(ship_data)
-                    stats[result] += 1
+                    # upsert_ship returns 'created', 'updated', or 'unchanged'
+                    # We need to map these to our stats keys if they differ
+                    if result == 'created':
+                        stats['added'] += 1
+                    elif result == 'updated':
+                        stats['updated'] += 1
+                    elif result == 'unchanged':
+                        stats['unchanged'] += 1
             
             duration = int(time.time() - start_time)
             
