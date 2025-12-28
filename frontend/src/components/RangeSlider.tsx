@@ -18,31 +18,6 @@ export function RangeSlider<TData>({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Update position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const scrollY = window.scrollY;
-      const scrollX = window.scrollX;
-      
-      // Calculate position
-      let left = rect.left + scrollX;
-      
-      // Check if dropdown would go off-screen to the right (assuming ~288px width for w-72)
-      if (left + 288 > window.innerWidth) {
-        left = (rect.right + scrollX) - 288;
-      }
-      
-      // Ensure it doesn't go off-screen to the left
-      if (left < 10) left = 10;
-
-      setPosition({
-        top: rect.bottom + scrollY + 4,
-        left: left,
-      });
-    }
-  }, [isOpen]);
-
   // Get min and max values from the column
   const [minValue, maxValue] = useMemo(() => {
     const facetedValues = column.getFacetedMinMaxValues();
@@ -63,13 +38,35 @@ export function RangeSlider<TData>({
   const [localMin, setLocalMin] = useState(filterValue[0]);
   const [localMax, setLocalMax] = useState(filterValue[1]);
 
-  // Update local state when filter changes or when opening
+  // Only update local state when opening the dropdown
   useEffect(() => {
     if (isOpen) {
       setLocalMin(filterValue[0]);
       setLocalMax(filterValue[1]);
     }
-  }, [isOpen, filterValue]);
+  }, [isOpen]); // Removed filterValue from dependencies!
+
+  // Update position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY;
+      const scrollX = window.scrollX;
+      
+      let left = rect.left + scrollX;
+      
+      if (left + 288 > window.innerWidth) {
+        left = (rect.right + scrollX) - 288;
+      }
+      
+      if (left < 10) left = 10;
+
+      setPosition({
+        top: rect.bottom + scrollY + 4,
+        left: left,
+      });
+    }
+  }, [isOpen]);
 
   // Apply filter
   const applyFilter = () => {
@@ -113,7 +110,6 @@ export function RangeSlider<TData>({
   // Handle scroll to close dropdown - only for scrolling OUTSIDE the dropdown
   useEffect(() => {
     const handleScroll = (e: Event) => {
-      // Only close if scroll happened outside the dropdown
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
@@ -205,7 +201,6 @@ export function RangeSlider<TData>({
                   step={Math.max((maxValue - minValue) / 100, 0.01)}
                   value={localMin}
                   onChange={(e) => {
-                    e.stopPropagation();
                     const value = Number(e.target.value);
                     setLocalMin(Math.min(value, localMax));
                   }}
@@ -230,7 +225,6 @@ export function RangeSlider<TData>({
                   step={Math.max((maxValue - minValue) / 100, 0.01)}
                   value={localMax}
                   onChange={(e) => {
-                    e.stopPropagation();
                     const value = Number(e.target.value);
                     setLocalMax(Math.max(value, localMin));
                   }}
@@ -251,11 +245,17 @@ export function RangeSlider<TData>({
                   type="number"
                   value={localMin}
                   onChange={(e) => {
-                    const value = Number(e.target.value);
-                    if (!isNaN(value)) {
-                      setLocalMin(Math.max(minValue, Math.min(value, localMax)));
+                    const value = e.target.value;
+                    if (value === '') {
+                      setLocalMin(minValue);
+                      return;
+                    }
+                    const numValue = Number(value);
+                    if (!isNaN(numValue)) {
+                      setLocalMin(Math.max(minValue, Math.min(numValue, localMax)));
                     }
                   }}
+                  onFocus={(e) => e.target.select()}
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -266,11 +266,17 @@ export function RangeSlider<TData>({
                   type="number"
                   value={localMax}
                   onChange={(e) => {
-                    const value = Number(e.target.value);
-                    if (!isNaN(value)) {
-                      setLocalMax(Math.min(maxValue, Math.max(value, localMin)));
+                    const value = e.target.value;
+                    if (value === '') {
+                      setLocalMax(maxValue);
+                      return;
+                    }
+                    const numValue = Number(value);
+                    if (!isNaN(numValue)) {
+                      setLocalMax(Math.min(maxValue, Math.max(numValue, localMin)));
                     }
                   }}
+                  onFocus={(e) => e.target.select()}
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
